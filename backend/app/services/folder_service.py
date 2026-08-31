@@ -3,6 +3,7 @@ import mimetypes
 import logging
 from datetime import datetime
 from typing import List, Optional, Set
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.models.library_folder import LibraryFolder
@@ -118,13 +119,45 @@ class FolderService:
         return self._to_response(saved)
 
     def delete_folder(self, folder_id: str) -> bool:
+        folder = self.folder_repo.find_by_id(folder_id)
+        if not folder:
+            return False
+
         try:
             from app.services.watcher_service import watcher_service
             if watcher_service._observer and watcher_service._observer.is_alive():
                 watcher_service.unwatch_folder(folder_id)
         except Exception as e:
             logger.warning(f"Could not unwatch deleted folder: {e}")
-        return self.folder_repo.delete(folder_id)
+
+        # De-index all assets associated with this folder (files on disk are NOT deleted)
+        try:
+            norm_path = os.path.normpath(folder.path)
+            assets_to_delete = self.db.query(Asset).filter(
+                or_(
+                    Asset.folder_id == folder_id,
+                    Asset.storage_path == norm_path,
+                    Asset.storage_path.startswith(norm_path + os.sep),
+                    Asset.storage_path.startswith(norm_path + "/")
+                )
+            ).all()
+            for asset in assets_to_delete:
+                self.db.delete(asset)
+            self.db.commit()
+        except Exception as e:
+            logger.warning(f"Could not de-index assets for folder {folder_id}: {e}")
+
+        # Delete folder record
+        res = self.folder_repo.delete(folder_id)
+
+        # Clean up any orphaned tags that no longer have associated assets
+        try:
+            from app.services.tag_service import TagService
+            TagService(self.db).delete_unused_tags()
+        except Exception as e:
+            logger.warning(f"Could not clean unused tags: {e}")
+
+        return res
 
     def scan_folder(self, folder_id: str) -> FolderScanResult:
         folder = self.folder_repo.find_by_id(folder_id)
