@@ -1,0 +1,51 @@
+import logging
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker, declarative_base
+from app.config import settings
+
+logger = logging.getLogger("assetvault.db")
+
+engine = create_engine(
+    settings.database_url,
+    connect_args={"check_same_thread": False}
+)
+
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+Base = declarative_base()
+
+def init_db(target_engine=None):
+    """Initializes schema and runs automatic SQLite column migrations."""
+    db_engine = target_engine or engine
+    Base.metadata.create_all(bind=db_engine)
+    
+    # Auto-migration for SQLite tables
+    try:
+        with db_engine.connect() as conn:
+            # Check files table columns
+            cursor = conn.execute(text("PRAGMA table_info(files)"))
+            existing_columns = {row[1] for row in cursor.fetchall()}
+            
+            if existing_columns:
+                if "folder_id" not in existing_columns:
+                    conn.execute(text("ALTER TABLE files ADD COLUMN folder_id VARCHAR(36)"))
+                    logger.info("Migrated schema: Added files.folder_id column.")
+                if "file_modified_at" not in existing_columns:
+                    conn.execute(text("ALTER TABLE files ADD COLUMN file_modified_at DATETIME"))
+                    logger.info("Migrated schema: Added files.file_modified_at column.")
+                if "file_hash" not in existing_columns:
+                    conn.execute(text("ALTER TABLE files ADD COLUMN file_hash VARCHAR"))
+                    logger.info("Migrated schema: Added files.file_hash column.")
+                if "thumbnail_path" not in existing_columns:
+                    conn.execute(text("ALTER TABLE files ADD COLUMN thumbnail_path VARCHAR"))
+                    logger.info("Migrated schema: Added files.thumbnail_path column.")
+                conn.commit()
+    except Exception as e:
+        logger.debug(f"Schema migration note: {e}")
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()

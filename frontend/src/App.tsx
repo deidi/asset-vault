@@ -1,0 +1,375 @@
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import {
+  Search,
+  LayoutGrid,
+  Grid3X3,
+  Layers,
+  RefreshCw,
+  FolderPlus,
+  PanelRight,
+  PanelRightClose,
+  ArrowUpDown,
+  CheckSquare,
+  Square
+} from 'lucide-react';
+import type { Asset, LibraryFolder, WebSocketEvent } from './types';
+import { fetchAssets, fetchFolders } from './api';
+import { useWebSocket } from './useWebSocket';
+import { Sidebar } from './components/Sidebar';
+import { MediaGrid } from './components/MediaGrid';
+import { InspectorPanel } from './components/InspectorPanel';
+import { BulkActionsBar } from './components/BulkActionsBar';
+import { PreviewModal } from './components/PreviewModal';
+import { AddFolderModal } from './components/AddFolderModal';
+import { CacheManagerModal } from './components/CacheManagerModal';
+
+export const App: React.FC = () => {
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [folders, setFolders] = useState<LibraryFolder[]>([]);
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<string>('created_at');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [gridSize, setGridSize] = useState<'small' | 'medium' | 'large'>('medium');
+
+  const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([]);
+  const [activeAssetId, setActiveAssetId] = useState<string | null>(null);
+  const [lastSelectedAssetId, setLastSelectedAssetId] = useState<string | null>(null);
+
+  const [isInspectorOpen, setIsInspectorOpen] = useState(true);
+  const [previewModalAsset, setPreviewModalAsset] = useState<Asset | null>(null);
+  const [isAddFolderOpen, setIsAddFolderOpen] = useState(false);
+  const [isCacheManagerOpen, setIsCacheManagerOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  // Load Library Data
+  const loadLibrary = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [assetsRes, foldersRes] = await Promise.all([
+        fetchAssets({
+          page: 1,
+          pageSize: 500,
+          search: searchQuery || undefined,
+          folderId: selectedFolderId || undefined,
+          tags: selectedTags.length > 0 ? selectedTags : undefined,
+          sortBy,
+          sortOrder,
+        }),
+        fetchFolders(),
+      ]);
+      const list = assetsRes.assets || assetsRes.items || [];
+      setAssets(list);
+      setFolders(foldersRes);
+    } catch (err) {
+      console.error('Error loading library:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [searchQuery, selectedFolderId, selectedTags, sortBy, sortOrder]);
+
+  // Initial Load & Debounced Filter Trigger
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      loadLibrary();
+    }, 150);
+    return () => clearTimeout(handler);
+  }, [loadLibrary]);
+
+  // Live WebSocket Event Handler
+  const handleWsEvent = useCallback((_event: WebSocketEvent) => {
+    // When files are added, modified, renamed or deleted, silently reload
+    loadLibrary();
+  }, [loadLibrary]);
+
+  const { isConnected } = useWebSocket(handleWsEvent);
+
+  // Extract all available tags across library
+  const availableTags = useMemo(() => {
+    const set = new Set<string>();
+    assets.forEach((a) => a.tags.forEach((t) => set.add(t.name.replace(/^#/, ''))));
+    return Array.from(set).sort();
+  }, [assets]);
+
+  // Active Asset Object for Inspector
+  const activeAsset = useMemo(() => {
+    if (!activeAssetId) return assets.length > 0 ? assets[0] : null;
+    return assets.find((a) => a.id === activeAssetId) || null;
+  }, [assets, activeAssetId]);
+
+  // Selection Handler (Single, Multi-select, Range)
+  const handleSelectAsset = (asset: Asset, isMulti: boolean, isRange: boolean) => {
+    setActiveAssetId(asset.id);
+
+    if (isRange && lastSelectedAssetId) {
+      const lastIdx = assets.findIndex((a) => a.id === lastSelectedAssetId);
+      const currIdx = assets.findIndex((a) => a.id === asset.id);
+      if (lastIdx !== -1 && currIdx !== -1) {
+        const start = Math.min(lastIdx, currIdx);
+        const end = Math.max(lastIdx, currIdx);
+        const rangeIds = assets.slice(start, end + 1).map((a) => a.id);
+        setSelectedAssetIds(Array.from(new Set([...selectedAssetIds, ...rangeIds])));
+        return;
+      }
+    }
+
+    if (isMulti) {
+      if (selectedAssetIds.includes(asset.id)) {
+        setSelectedAssetIds(selectedAssetIds.filter((id) => id !== asset.id));
+      } else {
+        setSelectedAssetIds([...selectedAssetIds, asset.id]);
+      }
+    } else {
+      setSelectedAssetIds([asset.id]);
+    }
+    setLastSelectedAssetId(asset.id);
+  };
+
+  const handleSelectAll = () => {
+    if (selectedAssetIds.length === assets.length) {
+      setSelectedAssetIds([]);
+    } else {
+      setSelectedAssetIds(assets.map((a) => a.id));
+    }
+  };
+
+  const handleToggleTag = (tag: string) => {
+    if (selectedTags.includes(tag)) {
+      setSelectedTags(selectedTags.filter((t) => t !== tag));
+    } else {
+      setSelectedTags([...selectedTags, tag]);
+    }
+  };
+
+  const handleAssetUpdated = (updated: Asset) => {
+    setAssets((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
+  };
+
+  const handleAssetDeleted = (deletedId: string) => {
+    setAssets((prev) => prev.filter((a) => a.id !== deletedId));
+    setSelectedAssetIds((prev) => prev.filter((id) => id !== deletedId));
+    if (activeAssetId === deletedId) {
+      setActiveAssetId(null);
+    }
+  };
+
+  const activeFolderName = selectedFolderId
+    ? folders.find((f) => f.id === selectedFolderId)?.name || 'Folder'
+    : 'All Library Assets';
+
+  return (
+    <div className="flex h-screen w-screen overflow-hidden bg-[#090e1c] text-slate-100 font-sans antialiased select-none">
+      {/* 1. Left Sidebar */}
+      <Sidebar
+        folders={folders}
+        selectedFolderId={selectedFolderId}
+        onSelectFolder={(id) => {
+          setSelectedFolderId(id);
+          setSelectedAssetIds([]);
+        }}
+        onOpenAddFolder={() => setIsAddFolderOpen(true)}
+        onOpenCacheManager={() => setIsCacheManagerOpen(true)}
+        onRefreshLibrary={loadLibrary}
+        availableTags={availableTags}
+        selectedTags={selectedTags}
+        onToggleTag={handleToggleTag}
+        onClearTags={() => setSelectedTags([])}
+        isWsConnected={isConnected}
+      />
+
+      {/* 2. Main Content Canvas */}
+      <main className="flex-1 flex flex-col h-full min-w-0 bg-[#0b1329] overflow-hidden">
+        {/* Top Navbar */}
+        <header className="h-16 border-b border-slate-800/80 px-6 flex items-center justify-between bg-slate-900/40 backdrop-blur-md shrink-0">
+          {/* Left Title & Status */}
+          <div className="flex items-center space-x-3 truncate">
+            <h2 className="text-base font-bold text-slate-100 truncate">{activeFolderName}</h2>
+            <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-400 font-mono font-medium">
+              {assets.length} {assets.length === 1 ? 'file' : 'files'}
+            </span>
+          </div>
+
+          {/* Center Search Input */}
+          <div className="flex-1 max-w-md mx-6">
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3.5 top-3 text-slate-500" />
+              <input
+                type="text"
+                placeholder="Search assets, filenames, tags..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-slate-950/80 border border-slate-800 rounded-xl text-slate-200 text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+              />
+            </div>
+          </div>
+
+          {/* Right Toolbar Controls */}
+          <div className="flex items-center space-x-2">
+            {/* Select All Toggle */}
+            <button
+              onClick={handleSelectAll}
+              className={`p-2 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition-colors ${
+                selectedAssetIds.length > 0
+                  ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
+                  : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
+              }`}
+              title={selectedAssetIds.length === assets.length ? 'Deselect All' : 'Select All (Ctrl+A)'}
+            >
+              {selectedAssetIds.length === assets.length && assets.length > 0 ? (
+                <CheckSquare className="w-4 h-4" />
+              ) : (
+                <Square className="w-4 h-4" />
+              )}
+            </button>
+
+            {/* Sort Order Selector */}
+            <div className="flex items-center space-x-1 bg-slate-900 border border-slate-800 rounded-xl p-1 text-xs">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="bg-transparent text-slate-300 text-xs px-2 py-1 focus:outline-none cursor-pointer"
+              >
+                <option value="created_at" className="bg-slate-900">Date Added</option>
+                <option value="name" className="bg-slate-900">Filename</option>
+                <option value="size_bytes" className="bg-slate-900">File Size</option>
+              </select>
+              <button
+                onClick={() => setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'))}
+                className="p-1 text-slate-400 hover:text-slate-200 rounded-lg"
+                title={`Sort ${sortOrder === 'asc' ? 'Descending' : 'Ascending'}`}
+              >
+                <ArrowUpDown className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Grid Size Toggle */}
+            <div className="flex items-center space-x-0.5 bg-slate-900 border border-slate-800 rounded-xl p-1 text-xs">
+              <button
+                onClick={() => setGridSize('small')}
+                className={`p-1.5 rounded-lg transition-colors ${
+                  gridSize === 'small' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="Small Grid"
+              >
+                <Grid3X3 className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setGridSize('medium')}
+                className={`p-1.5 rounded-lg transition-colors ${
+                  gridSize === 'medium' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="Medium Grid"
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Refresh Button */}
+            <button
+              onClick={loadLibrary}
+              disabled={loading}
+              className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800 transition-colors"
+              title="Refresh Library"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+
+            {/* Inspector Toggle Button */}
+            <button
+              onClick={() => setIsInspectorOpen(!isInspectorOpen)}
+              className={`p-2 rounded-xl transition-colors border ${
+                isInspectorOpen
+                  ? 'bg-blue-600/20 text-blue-400 border-blue-500/30'
+                  : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
+              }`}
+              title="Toggle Inspector Panel (Ctrl+I)"
+            >
+              {isInspectorOpen ? <PanelRightClose className="w-4 h-4" /> : <PanelRight className="w-4 h-4" />}
+            </button>
+          </div>
+        </header>
+
+        {/* Media Grid Canvas */}
+        <div className="flex-1 overflow-y-auto">
+          {assets.length > 0 ? (
+            <MediaGrid
+              assets={assets}
+              selectedAssetIds={selectedAssetIds}
+              activeAssetId={activeAssetId}
+              onSelectAsset={handleSelectAsset}
+              onOpenFullscreenPreview={(asset) => setPreviewModalAsset(asset)}
+              gridSize={gridSize}
+            />
+          ) : (
+            <div className="h-full flex flex-col items-center justify-center p-8 text-center space-y-4">
+              <div className="w-16 h-16 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-500">
+                <Layers className="w-8 h-8" />
+              </div>
+              <div className="max-w-md">
+                <h3 className="text-base font-bold text-slate-200">No assets found</h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  {selectedFolderId
+                    ? 'This folder does not contain any supported media files yet.'
+                    : 'Add a library folder from the sidebar or drop media files to begin.'}
+                </p>
+              </div>
+              <button
+                onClick={() => setIsAddFolderOpen(true)}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-blue-500/25 flex items-center space-x-2 transition-all"
+              >
+                <FolderPlus className="w-4 h-4" />
+                <span>Add Library Folder</span>
+              </button>
+            </div>
+          )}
+        </div>
+      </main>
+
+      {/* 3. Collapsible Right-Hand Inspector Panel */}
+      <InspectorPanel
+        asset={activeAsset}
+        isOpen={isInspectorOpen && activeAsset !== null}
+        onClose={() => setIsInspectorOpen(false)}
+        onOpenFullscreenPreview={(asset) => setPreviewModalAsset(asset)}
+        onAssetUpdated={handleAssetUpdated}
+        onAssetDeleted={handleAssetDeleted}
+      />
+
+      {/* 4. Floating Bulk Actions Toolbar */}
+      <BulkActionsBar
+        selectedAssetIds={selectedAssetIds}
+        onClearSelection={() => setSelectedAssetIds([])}
+        onRefreshLibrary={loadLibrary}
+      />
+
+      {/* 5. Full-Screen Interactive Preview Modal */}
+      {previewModalAsset && (
+        <PreviewModal
+          asset={previewModalAsset}
+          assetsList={assets}
+          onClose={() => setPreviewModalAsset(null)}
+          onSelectAsset={(a) => setPreviewModalAsset(a)}
+        />
+      )}
+
+      {/* 6. Modals */}
+      <AddFolderModal
+        isOpen={isAddFolderOpen}
+        onClose={() => setIsAddFolderOpen(false)}
+        onFolderAdded={(folder) => {
+          setSelectedFolderId(folder.id);
+          loadLibrary();
+        }}
+      />
+
+      <CacheManagerModal
+        isOpen={isCacheManagerOpen}
+        onClose={() => setIsCacheManagerOpen(false)}
+        onRefreshLibrary={loadLibrary}
+      />
+    </div>
+  );
+};
+
+export default App;

@@ -1,0 +1,13 @@
+fastapi>=0.110.0
+uvicorn>=0.28.0
+sqlalchemy>=2.0.28
+pydantic>=2.6.4
+pydantic-settings>=2.2.1
+python-multipart>=0.0.9
+pillow>=10.2.0
+requests>=2.31.0
+send2trash>=2.1.0
+watchdog>=6.0.0
+pywebview>=6.2.1
+pypdfium2>=5.0.0
+websockets>=13.0

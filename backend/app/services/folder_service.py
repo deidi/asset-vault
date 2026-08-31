@@ -1,0 +1,283 @@
+import os
+import mimetypes
+import logging
+from datetime import datetime
+from typing import List, Optional, Set
+from sqlalchemy.orm import Session
+
+from app.models.library_folder import LibraryFolder
+from app.models.asset import Asset
+from app.repositories.library_folder_repository import LibraryFolderRepository
+from app.repositories.asset_repository import AssetRepository
+from app.services.tag_service import TagService
+from app.schemas.library_folder import (
+    LibraryFolderCreate,
+    LibraryFolderUpdate,
+    LibraryFolderResponse,
+    FolderScanResult
+)
+
+logger = logging.getLogger("assetvault.folder_service")
+
+# Supported media extensions bundle
+IMAGE_EXTENSIONS: Set[str] = {
+    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".tiff", ".ico", ".jfif"
+}
+VIDEO_EXTENSIONS: Set[str] = {
+    ".mp4", ".webm", ".mov", ".mkv", ".avi", ".wmv", ".flv", ".m4v"
+}
+AUDIO_EXTENSIONS: Set[str] = {
+    ".mp3", ".wav", ".ogg", ".flac", ".m4a", ".aac", ".wma"
+}
+DOCUMENT_EXTENSIONS: Set[str] = {
+    ".pdf"
+}
+SUPPORTED_EXTENSIONS: Set[str] = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS | AUDIO_EXTENSIONS | DOCUMENT_EXTENSIONS
+
+
+class FolderService:
+    def __init__(self, db: Session):
+        self.db = db
+        self.folder_repo = LibraryFolderRepository(db)
+        self.asset_repo = AssetRepository(db)
+        self.tag_service = TagService(db)
+
+    def add_folder(self, payload: LibraryFolderCreate) -> LibraryFolderResponse:
+        norm_path = os.path.normpath(payload.path.strip())
+        if not os.path.isdir(norm_path):
+            raise ValueError(f"Directory path does not exist on disk: '{norm_path}'")
+
+        existing = self.folder_repo.find_by_path(norm_path)
+        if existing:
+            raise ValueError(f"Folder is already registered in library: '{norm_path}'")
+
+        folder_name = payload.name.strip() if payload.name and payload.name.strip() else os.path.basename(norm_path) or norm_path
+
+        custom_tags_str = None
+        if payload.custom_tags:
+            custom_tags_str = ",".join([t.strip().lstrip("#") for t in payload.custom_tags if t.strip()])
+
+        folder = LibraryFolder(
+            path=norm_path,
+            name=folder_name,
+            is_recursive=payload.is_recursive,
+            auto_tag_folder=payload.auto_tag_folder,
+            custom_tags=custom_tags_str,
+            is_active=True
+        )
+        saved = self.folder_repo.create(folder)
+        
+        # Dynamically attach file system watcher if watcher service is active
+        try:
+            from app.services.watcher_service import watcher_service
+            if watcher_service._observer and watcher_service._observer.is_alive():
+                watcher_service.watch_folder(saved)
+        except Exception as e:
+            logger.warning(f"Could not attach watcher for new folder: {e}")
+
+        return self._to_response(saved)
+
+    def list_folders(self, active_only: bool = False) -> List[LibraryFolderResponse]:
+        folders = self.folder_repo.find_all(active_only=active_only)
+        return [self._to_response(f) for f in folders]
+
+    def get_folder(self, folder_id: str) -> Optional[LibraryFolderResponse]:
+        folder = self.folder_repo.find_by_id(folder_id)
+        return self._to_response(folder) if folder else None
+
+    def update_folder(self, folder_id: str, payload: LibraryFolderUpdate) -> LibraryFolderResponse:
+        folder = self.folder_repo.find_by_id(folder_id)
+        if not folder:
+            raise ValueError(f"Library folder with ID '{folder_id}' not found.")
+
+        if payload.name is not None:
+            folder.name = payload.name.strip()
+        if payload.is_recursive is not None:
+            folder.is_recursive = payload.is_recursive
+        if payload.auto_tag_folder is not None:
+            folder.auto_tag_folder = payload.auto_tag_folder
+        if payload.is_active is not None:
+            folder.is_active = payload.is_active
+        if payload.custom_tags is not None:
+            folder.custom_tags = ",".join([t.strip().lstrip("#") for t in payload.custom_tags if t.strip()])
+
+        saved = self.folder_repo.save(folder)
+        
+        # Update watcher state if watcher service is active
+        try:
+            from app.services.watcher_service import watcher_service
+            if watcher_service._observer and watcher_service._observer.is_alive():
+                if saved.is_active:
+                    watcher_service.watch_folder(saved)
+                else:
+                    watcher_service.unwatch_folder(saved.id)
+        except Exception as e:
+            logger.warning(f"Could not update watcher state for folder: {e}")
+
+        return self._to_response(saved)
+
+    def delete_folder(self, folder_id: str) -> bool:
+        try:
+            from app.services.watcher_service import watcher_service
+            if watcher_service._observer and watcher_service._observer.is_alive():
+                watcher_service.unwatch_folder(folder_id)
+        except Exception as e:
+            logger.warning(f"Could not unwatch deleted folder: {e}")
+        return self.folder_repo.delete(folder_id)
+
+    def scan_folder(self, folder_id: str) -> FolderScanResult:
+        folder = self.folder_repo.find_by_id(folder_id)
+        if not folder:
+            raise ValueError(f"Library folder with ID '{folder_id}' not found.")
+
+        if not os.path.exists(folder.path):
+            raise FileNotFoundError(f"Folder directory does not exist on disk: {folder.path}")
+
+        total_scanned = 0
+        newly_indexed = 0
+        already_indexed = 0
+        errors: List[str] = []
+
+        # Find all media files
+        file_paths: List[str] = []
+        if folder.is_recursive:
+            for root, _, filenames in os.walk(folder.path):
+                for filename in filenames:
+                    _, ext = os.path.splitext(filename)
+                    if ext.lower() in SUPPORTED_EXTENSIONS:
+                        file_paths.append(os.path.normpath(os.path.join(root, filename)))
+        else:
+            try:
+                for entry in os.scandir(folder.path):
+                    if entry.is_file():
+                        _, ext = os.path.splitext(entry.name)
+                        if ext.lower() in SUPPORTED_EXTENSIONS:
+                            file_paths.append(os.path.normpath(entry.path))
+            except Exception as e:
+                errors.append(f"Error scanning folder root: {str(e)}")
+
+        total_scanned = len(file_paths)
+
+        # Parse custom tags list from folder settings
+        configured_custom_tags: List[str] = []
+        if folder.custom_tags:
+            configured_custom_tags = [t.strip() for t in folder.custom_tags.split(",") if t.strip()]
+
+        for file_path in file_paths:
+            try:
+                # Check if file already indexed
+                existing_asset = self.asset_repo.find_by_storage_path(file_path)
+                if existing_asset:
+                    already_indexed += 1
+                    continue
+
+                filename = os.path.basename(file_path)
+                _, ext = os.path.splitext(filename)
+                clean_ext = ext.lower().lstrip(".")
+
+                size_bytes = os.path.getsize(file_path)
+                mtime = datetime.fromtimestamp(os.path.getmtime(file_path))
+                mime_type, _ = mimetypes.guess_type(file_path)
+
+                # Determine tag set
+                tag_names_to_add: List[str] = []
+                
+                # 1. System extension tag
+                if clean_ext:
+                    tag_names_to_add.append(f"#{clean_ext}")
+
+                # 2. System filename tag
+                tag_names_to_add.append(f"#{filename}")
+
+                # 3. Year tag
+                year_tag = f"#{mtime.year}"
+                tag_names_to_add.append(year_tag)
+
+                # 4. Folder name tag (if enabled)
+                if folder.auto_tag_folder:
+                    parent_dir_name = os.path.basename(os.path.dirname(file_path))
+                    if parent_dir_name:
+                        tag_names_to_add.append(f"#{parent_dir_name}")
+
+                # 5. Custom configured folder tags
+                for custom_tag in configured_custom_tags:
+                    tag_names_to_add.append(f"#{custom_tag}" if not custom_tag.startswith("#") else custom_tag)
+
+                # Deduplicate tags
+                unique_tags = list(dict.fromkeys(tag_names_to_add))
+                resolved_tags = [self.tag_service.get_or_create_tag(t) for t in unique_tags]
+
+                # Create Asset record
+                asset = Asset(
+                    name=filename,
+                    original_name=filename,
+                    mime_type=mime_type or "application/octet-stream",
+                    size_bytes=size_bytes,
+                    storage_path=file_path,
+                    folder_id=folder.id,
+                    file_modified_at=mtime,
+                    created_at=datetime.utcnow()
+                )
+                asset.tags = resolved_tags
+                self.asset_repo.save(asset)
+                newly_indexed += 1
+
+            except Exception as e:
+                logger.error(f"Error indexing file {file_path}: {e}")
+                errors.append(f"{file_path}: {str(e)}")
+
+        return FolderScanResult(
+            folder_id=folder.id,
+            folder_path=folder.path,
+            total_scanned=total_scanned,
+            newly_indexed=newly_indexed,
+            already_indexed=already_indexed,
+            errors=errors
+        )
+
+    def scan_all_active_folders(self) -> List[FolderScanResult]:
+        active_folders = self.folder_repo.find_all(active_only=True)
+        results = []
+        for folder in active_folders:
+            try:
+                results.append(self.scan_folder(folder.id))
+            except Exception as e:
+                logger.error(f"Failed scanning folder {folder.path}: {e}")
+                results.append(FolderScanResult(
+                    folder_id=folder.id,
+                    folder_path=folder.path,
+                    total_scanned=0,
+                    newly_indexed=0,
+                    already_indexed=0,
+                    errors=[str(e)]
+                ))
+        return results
+
+    def open_folder_picker_dialog(self) -> Optional[str]:
+        """Opens a native OS folder selection dialog."""
+        try:
+            import tkinter as tk
+            from tkinter import filedialog
+            root = tk.Tk()
+            root.withdraw()
+            root.attributes("-topmost", True)
+            selected_dir = filedialog.askdirectory(title="Select Media Folder for AssetVault")
+            root.destroy()
+            return os.path.normpath(selected_dir) if selected_dir else None
+        except Exception as e:
+            logger.warning(f"Native folder picker fallback failed: {e}")
+            return None
+
+    def _to_response(self, folder: LibraryFolder) -> LibraryFolderResponse:
+        asset_count = self.asset_repo.count_by_folder_id(folder.id)
+        return LibraryFolderResponse(
+            id=folder.id,
+            path=folder.path,
+            name=folder.name,
+            is_recursive=folder.is_recursive,
+            auto_tag_folder=folder.auto_tag_folder,
+            custom_tags=folder.custom_tags,
+            is_active=folder.is_active,
+            asset_count=asset_count,
+            created_at=folder.created_at
+        )
