@@ -5,7 +5,7 @@ from app.models.tag import Tag
 from app.repositories.asset_repository import AssetRepository
 from app.services.tag_service import TagService
 from app.schemas.asset import AssetCreate, AssetUpdate
-from typing import List, Optional
+from typing import List, Optional, Union
 from datetime import datetime
 from fastapi import UploadFile
 from PIL import Image
@@ -468,7 +468,7 @@ class AssetService:
         sort_by: str = "created_at",
         sort_dir: str = "desc",
         search: str = "",
-        tags: Optional[str] = None,
+        tags: Optional[Union[List[str], str]] = None,
         folder_id: Optional[str] = None,
         subfolder_path: Optional[str] = None,
         path_prefix: Optional[str] = None
@@ -500,10 +500,26 @@ class AssetService:
                 )
             )
 
-        if tags and tags.strip():
-            tag_list = list(set(t.strip() for t in tags.split(",") if t.strip()))
+        if tags:
+            tag_inputs = tags if isinstance(tags, list) else [tags]
+            tag_list = []
+            for item in tag_inputs:
+                if item:
+                    for sub in str(item).split(","):
+                        t_clean = sub.strip()
+                        if t_clean:
+                            tag_list.append(t_clean)
+            tag_list = list(set(tag_list))
             for tag_name in tag_list:
-                query = query.filter(Asset.tags.any(Tag.name.ilike(tag_name)))
+                clean_tag = tag_name.lstrip("#")
+                query = query.filter(
+                    Asset.tags.any(
+                        or_(
+                            Tag.name.ilike(clean_tag),
+                            Tag.name.ilike(f"#{clean_tag}")
+                        )
+                    )
+                )
 
             
         total = query.count()

@@ -138,7 +138,7 @@ def get_assets_paginated(
     subfolderPath: Optional[str] = Query(None),
     path_prefix: Optional[str] = Query(None),
     pathPrefix: Optional[str] = Query(None),
-    tags: Optional[str] = Query(None),
+    tags: Optional[List[str]] = Query(None),
     db: Session = Depends(get_db)
 ):
     asset_service = AssetService(db)
