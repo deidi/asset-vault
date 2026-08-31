@@ -1,5 +1,10 @@
 # 🏛️ AssetVault
 
+[![AssetVault CI & Build](https://github.com/deidi/asset-vault/actions/workflows/ci.yml/badge.svg)](https://github.com/deidi/asset-vault/actions/workflows/ci.yml)
+![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-blue)
+![Architecture](https://img.shields.io/badge/architecture-Local--First%20%7C%20In--Place-emerald)
+![License](https://img.shields.io/badge/license-MIT-purple)
+
 AssetVault is a production-quality, local-first asset management system built as a **Standalone Windows Desktop Application** with an **In-Place Multi-Folder Reference Engine**.
 
 Original media files remain directly in their selected folders on disk. AssetVault provides instant indexing, real-time background file watching (`watchdog`), cached WebP thumbnail generation, rich media previewers (Images, Videos, Audio, PDFs), a collapsible Inspector panel with native Windows File Explorer integration, and flexible bulk management operations.
