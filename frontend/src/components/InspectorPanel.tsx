@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   X,
   FolderOpen,
+  FolderInput,
   Edit2,
   Trash2,
   Lock,
@@ -10,7 +11,7 @@ import {
   Layers
 } from 'lucide-react';
 import type { Asset } from '../types';
-import { getThumbnailUrl, revealInExplorer, renameOnDisk, trashToRecycleBin, updateAssetTags } from '../api';
+import { getThumbnailUrl, revealInExplorer, renameOnDisk, trashToRecycleBin, updateAssetTags, batchMove, pickFolderDialog } from '../api';
 
 interface InspectorPanelProps {
   asset: Asset | null;
@@ -35,10 +36,48 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isConfirmingTrash, setIsConfirmingTrash] = useState(false);
+  const [isMoving, setIsMoving] = useState(false);
+  const [moveTargetDir, setMoveTargetDir] = useState('');
 
   if (!isOpen || !asset) return null;
 
   const thumbnailUrl = getThumbnailUrl(asset.id, 400, 300);
+
+  const handleBrowseTargetDir = async () => {
+    try {
+      const selected = await pickFolderDialog();
+      if (selected) {
+        setMoveTargetDir(selected);
+      }
+    } catch (err) {
+      console.error('Pick folder failed:', err);
+    }
+  };
+
+  const handleExecuteMove = async () => {
+    if (!moveTargetDir.trim()) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await batchMove([asset.id], moveTargetDir.trim());
+      if (res.errors && res.errors.length > 0) {
+        setError(res.errors.join(', '));
+      } else {
+        setIsMoving(false);
+        const fileName = asset.original_name || asset.name;
+        const newPath = `${moveTargetDir.trim()}\\${fileName}`;
+        onAssetUpdated({
+          ...asset,
+          storage_path: newPath,
+          absolute_path: newPath
+        });
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to move file');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const isProtectedTag = (tagName: string) => {
     const ext = asset.original_name.split('.').pop()?.toLowerCase() || '';
@@ -229,23 +268,85 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                 </button>
               </div>
             </div>
+          ) : isMoving ? (
+            <div className="p-3.5 bg-slate-950/90 border border-blue-500/40 rounded-xl space-y-3 shadow-lg">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-200 flex items-center space-x-1.5">
+                  <FolderInput className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Move File on Disk</span>
+                </span>
+                <button onClick={() => setIsMoving(false)} className="text-slate-500 hover:text-slate-300">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <div className="flex items-center space-x-1.5">
+                <input
+                  type="text"
+                  placeholder="Destination folder..."
+                  value={moveTargetDir}
+                  onChange={(e) => setMoveTargetDir(e.target.value)}
+                  className="flex-1 px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-slate-200 text-xs focus:outline-none focus:border-blue-500 font-mono"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={handleBrowseTargetDir}
+                  className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 hover:border-slate-600 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold flex items-center space-x-1 shrink-0 transition-colors shadow-xs"
+                  title="Browse Folder..."
+                >
+                  <FolderOpen className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Browse...</span>
+                </button>
+              </div>
+              <div className="flex justify-end space-x-2 pt-1">
+                <button
+                  onClick={() => setIsMoving(false)}
+                  disabled={loading}
+                  className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleExecuteMove}
+                  disabled={loading || !moveTargetDir.trim()}
+                  className="px-3 py-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg text-xs font-semibold flex items-center space-x-1 transition-colors"
+                >
+                  <FolderInput className="w-3 h-3" />
+                  <span>{loading ? 'Moving...' : 'Move'}</span>
+                </button>
+              </div>
+            </div>
           ) : (
-            <div className="grid grid-cols-2 gap-2 pt-1">
+            <div className="grid grid-cols-3 gap-1.5 pt-1">
               <button
                 onClick={() => revealInExplorer(asset.id)}
-                className="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 transition-colors shadow-xs"
+                className="px-2.5 py-2 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 rounded-xl text-xs font-medium flex items-center justify-center space-x-1.5 transition-colors shadow-xs"
+                title="Show in Windows File Explorer"
               >
                 <FolderOpen className="w-3.5 h-3.5 text-blue-400" />
-                <span>Show in Explorer</span>
+                <span>Explorer</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setIsMoving(true);
+                  setMoveTargetDir('');
+                }}
+                className="px-2.5 py-2 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 rounded-xl text-xs font-medium flex items-center justify-center space-x-1.5 transition-colors shadow-xs"
+                title="Move File to Another Folder on Disk"
+              >
+                <FolderInput className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Move</span>
               </button>
 
               <button
                 onClick={() => setIsConfirmingTrash(true)}
                 disabled={loading}
-                className="px-3 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 transition-colors"
+                className="px-2.5 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-xl text-xs font-medium flex items-center justify-center space-x-1.5 transition-colors"
+                title="Send to Windows Recycle Bin"
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                <span>Recycle Bin</span>
+                <span>Trash</span>
               </button>
             </div>
           )}

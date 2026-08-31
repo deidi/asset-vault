@@ -2,11 +2,12 @@ import React, { useState } from 'react';
 import {
   Trash2,
   FolderInput,
+  FolderOpen,
   X,
   Plus,
   Minus
 } from 'lucide-react';
-import { batchUpdateTags, trashToRecycleBin, batchMove } from '../api';
+import { batchUpdateTags, trashToRecycleBin, batchMove, pickFolderDialog } from '../api';
 
 interface BulkActionsBarProps {
   selectedAssetIds: string[];
@@ -181,16 +182,30 @@ export const BulkActionsBar: React.FC<BulkActionsBarProps> = ({
             {activeModal === 'move' && (
               <div className="space-y-3">
                 <p className="text-xs text-slate-400">
-                  Enter the destination directory on your disk where the selected files will be relocated:
+                  Select or enter the destination folder on your disk where the selected files will be relocated:
                 </p>
-                <input
-                  type="text"
-                  placeholder="D:\Projects\FinalAssets..."
-                  value={moveDestDir}
-                  onChange={(e) => setMoveDestDir(e.target.value)}
-                  className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-xs focus:outline-none focus:border-blue-500 font-mono"
-                  autoFocus
-                />
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="text"
+                    placeholder="D:\Projects\FinalAssets..."
+                    value={moveDestDir}
+                    onChange={(e) => setMoveDestDir(e.target.value)}
+                    className="flex-1 px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-xl text-slate-200 text-xs focus:outline-none focus:border-blue-500 font-mono"
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const selected = await pickFolderDialog();
+                      if (selected) setMoveDestDir(selected);
+                    }}
+                    className="px-3.5 py-2 bg-slate-800 hover:bg-slate-750 hover:border-slate-600 text-slate-200 rounded-xl text-xs font-semibold flex items-center space-x-1.5 shrink-0 transition-colors border border-slate-700 shadow-xs"
+                    title="Browse Folder..."
+                  >
+                    <FolderOpen className="w-3.5 h-3.5 text-blue-400" />
+                    <span>Browse...</span>
+                  </button>
+                </div>
               </div>
             )}
 

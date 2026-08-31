@@ -60,6 +60,7 @@ def batch_trash_assets(payload: BatchTrashRequest, db: Session = Depends(get_db)
     return service.batch_trash(asset_ids=asset_ids)
 
 @router.post("/batch-move", status_code=status.HTTP_200_OK)
+@router.post("/move", status_code=status.HTTP_200_OK)
 def batch_move_assets(payload: BatchMoveRequest, db: Session = Depends(get_db)) -> Dict[str, Any]:
     if not payload.asset_ids:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="asset_ids list cannot be empty.")

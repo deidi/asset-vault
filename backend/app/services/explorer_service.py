@@ -10,6 +10,7 @@ import send2trash
 
 from app.models.asset import Asset
 from app.models.tag import Tag
+from app.models.library_folder import LibraryFolder
 from app.repositories.asset_repository import AssetRepository
 from app.services.tag_service import TagService
 
@@ -179,6 +180,14 @@ class ExplorerService:
         if not os.path.exists(dest_dir):
             os.makedirs(dest_dir, exist_ok=True)
 
+        # Match destination to an active library folder if applicable
+        matching_folder = None
+        for folder in self.db.query(LibraryFolder).filter(LibraryFolder.is_active == True).all():
+            norm_fpath = os.path.normpath(folder.path)
+            if dest_dir == norm_fpath or dest_dir.startswith(norm_fpath + os.sep) or dest_dir.startswith(norm_fpath + "/"):
+                matching_folder = folder
+                break
+
         moved_count = 0
         errors: List[str] = []
 
@@ -200,6 +209,8 @@ class ExplorerService:
                 shutil.move(current_path, target_path)
                 asset.storage_path = target_path
                 asset.file_modified_at = datetime.utcnow()
+                if matching_folder:
+                    asset.folder_id = matching_folder.id
                 self.asset_repo.save(asset)
                 moved_count += 1
             except Exception as e:
