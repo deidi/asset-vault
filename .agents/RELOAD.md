@@ -11,7 +11,7 @@ AssetVault is built with a Clean Architecture structure, overhauled as a **Stand
 ```
 d:\Projects\asset-vault/
 ├── .agents/
-│   ├── AGENTS.md                   # Workspace development rules
+│   ├── AGENTS.md                   # Workspace development rules & constraints
 │   └── RELOAD.md                   # This onboarding / reload guide
 ├── backend/
 │   ├── app/
@@ -19,30 +19,39 @@ d:\Projects\asset-vault/
 │   │   ├── db/                     # SQLAlchemy engine & session setup
 │   │   ├── models/                 # SQLAlchemy DB models (Asset, Tag, AssetTag, LibraryFolder)
 │   │   ├── repositories/           # DB data access layer (AssetRepo, TagRepo, LibraryFolderRepo)
-│   │   ├── routes/                 # Thin FastAPI endpoints (asset, inventory, folder, explorer)
+│   │   ├── routes/                 # Thin FastAPI endpoints (asset, inventory, folder, explorer, thumbnail)
 │   │   ├── schemas/                # Pydantic schemas (Asset, Tag, LibraryFolder, Explorer)
-│   │   └── services/               # Core business logic (AssetService, TagService, FolderService, ExplorerService)
+│   │   └── services/               # Core business logic (AssetService, TagService, FolderService, ExplorerService, ThumbnailService)
 │   ├── db/
 │   │   ├── assetvault.sqlite       # Active SQLite database file
 │   │   └── settings.json           # Persistent storage & library settings
 │   └── requirements.txt            # Python dependencies (FastAPI, SQLAlchemy, Pillow, send2trash, watchdog, pywebview)
+├── dist/
+│   └── AssetVault.exe              # Self-contained standalone Windows executable
 ├── docs/                           # API docs, architecture, roadmap, testing plan
 ├── frontend/
 │   ├── src/
-│   │   ├── App.tsx                 # Main frontend app containing React SPA components
-│   │   └── main.tsx                # React client entrypoint
+│   │   ├── App.tsx                 # Main application containing layout, header, state
+│   │   ├── components/             # React UI components (Sidebar, MediaGrid, InspectorPanel, PreviewModal, etc.)
+│   │   └── main.tsx                # React client entrypoint with ErrorBoundary
 │   └── package.json                # Node.js dependencies & scripts
 ├── public/                         # Built frontend SPA bundle served by FastAPI & PyWebView
-├── storage/                        # Physical file storage directory for internal imports
+├── storage/                        # Physical file storage directory for internal vault imports
 ├── tasks/
 │   ├── TASKS_SUMMARY.md            # Master task summary index
 │   └── archive/                    # Archived historical task logs (000 - 012)
-└── tests/
-    ├── run_tests.py                # Automated Python test runner
-    ├── test_asset_service.py       # AssetService unit tests
-    ├── test_api_routes.py          # REST API integration tests
-    ├── test_folder_and_explorer.py # Folder & Explorer service unit tests
-    └── test_folder_and_explorer_api.py # Folder & Explorer REST API integration tests
+├── tests/                          # 19/19 passing automated test suite
+│   ├── run_tests.py                # Automated test runner
+│   ├── test_asset_service.py       # AssetService unit tests
+│   ├── test_api_routes.py          # REST API integration tests
+│   ├── test_folder_and_explorer.py # Folder & Explorer service unit tests
+│   ├── test_folder_and_explorer_api.py # Folder & Explorer REST API integration tests
+│   ├── test_thumbnail_and_cache.py # Thumbnail generator & video thumbnail tests
+│   ├── test_watcher_service.py     # File watcher lifecycle & event tests
+│   └── test_ws_api.py              # WebSocket live sync tests
+├── build_desktop.py                # Standalone PyInstaller builder
+├── desktop_app.py                  # PyWebView desktop launcher entrypoint
+└── run_desktop.bat                 # Batch launcher for Windows
 ```
 
 ---
@@ -76,7 +85,7 @@ d:\Projects\asset-vault/
   - `tags`: Many-to-Many relationship with `Tag`
 - **Tag** (`app.models.tag.Tag`):
   - `id`: UUID (Primary Key, String)
-  - `name`: Unique tag name string (e.g. `#png`, `#Photos`, `#2026`)
+  - `name`: Unique tag name string (e.g. `#png`, `#Photos`, `#2026`, `#video.mp4`)
   - `created_at`: Datetime
 
 ### 2. In-Place Media & File Explorer Integration
@@ -85,7 +94,12 @@ d:\Projects\asset-vault/
 - **In-Place Rename**: `POST /api/explorer/rename` renames the file on disk (`os.replace`) and updates DB records & `#filename` tag atomically.
 - **Recycle Bin Trashing**: `POST /api/explorer/trash` safely sends files to the Windows Recycle Bin using `send2trash`.
 
-### 3. Ingestion Auto-Tagging Policy
+### 3. Video Thumbnail Generation Policy
+- Uses native Windows Shell `IThumbnailProvider` via ctypes (`shell32.dll`, `ole32.dll`) to extract crystal-clear keyframes from `.mp4`, `.mov`, `.mkv`, `.avi`, `.webm`, `.wmv`, `.m4v`, etc.
+- Overlays a semi-transparent video play badge in the thumbnail center.
+- Optimizes and caches thumbnails as `.webp` files under `.cache/thumbnails/`.
+
+### 4. Ingestion Auto-Tagging Policy
 - On folder scanning / indexing, AssetVault automatically assigns:
   - **Filetype extension** (e.g. `#png`, `#mp4`, `#pdf`) — protected system tag.
   - **Complete filename** (e.g. `#banner.png`) — protected system tag.
@@ -94,53 +108,35 @@ d:\Projects\asset-vault/
   - **Custom folder rules** (e.g. `#ProjectAlpha`) configured on the library folder.
 - Tags matching an asset's complete filename or filetype extension are identified via `is_protected_tag()` as protected system tags (`🔒`).
 
-### 4. Background Process & Watcher Shutdown Policy
-- **FastAPI Lifespan Context**: File watchers (`WatcherService`) and connection managers start on startup and stop on shutdown.
-- **Process Exit (`atexit`) Hooks**: `atexit.register(watcher_service.stop_all)` ensures all watchdog Win32 observer/emitter threads terminate cleanly upon Python process exit or desktop window close.
-- **Desktop App Window Hook**: When PyWebView desktop window closes (`window.events.closed`), the application triggers full graceful shutdown, terminates FastAPI threads, and ensures no orphaned `python.exe` processes linger.
+### 5. Tag Search & Matching Policy
+- Frontend strips `#` for clean display chips.
+- Backend `AssetService.get_inventory` filters tags via `or_(Tag.name.ilike(clean), Tag.name.ilike(f"#{clean}"))` to seamlessly match both prefixed and non-prefixed records with AND-logic.
+
+### 6. Background Process & Watcher Shutdown Policy
+- **FastAPI Lifespan Context**: File watchers (`WatcherService`) start on startup and stop on shutdown.
+- **Process Exit (`atexit`) Hooks**: `atexit.register(watcher_service.stop_all)` ensures all watchdog Win32 observer/emitter threads terminate cleanly upon process exit.
+- **Desktop Window Closed Hook**: When the PyWebView window closes (`window.events.closed`), the application triggers full graceful shutdown, terminating backend threads and preventing orphaned background processes (Rule #14).
 
 ---
 
-## 🚀 Commands & Workflows
+## 🚀 Quick Execution Commands
 
-### 1. Starting the Backend Server
+### 1. Run Desktop Application
 ```powershell
-# Powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\assetvault_start.ps1
-
-# Or run via python directly
-.\backend\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+.\run_desktop.bat
 ```
 
-### 2. Stopping the Server & Background Watchers
+### 2. Build Standalone Desktop Executable
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\assetvault_stop.ps1
+.\backend\.venv\Scripts\python.exe build_desktop.py
 ```
 
-### 3. Compiling Frontend Assets
+### 3. Run Automated Backend Test Suite
 ```powershell
-# Cwd: d:\Projects\asset-vault\frontend
-npm.cmd run build
+.\backend\.venv\Scripts\python.exe tests/run_tests.py
 ```
 
----
-
-## 🔍 Verification & Test Execution
-
-Before completing any task, always verify that your changes did not break the app:
-
-1. **Run Automated Python Test Suite**:
-   ```powershell
-   # Cwd: d:\Projects\asset-vault
-   .\backend\.venv\Scripts\python.exe tests/run_tests.py
-   ```
-2. **Verify Backend Python Files Syntax**:
-   ```powershell
-   # Cwd: d:\Projects\asset-vault
-   .\backend\.venv\Scripts\python.exe -c "import compileall; compileall.compile_dir('backend/app', force=True)"
-   ```
-3. **Verify Frontend Compilation**:
-   ```powershell
-   # Cwd: d:\Projects\asset-vault\frontend
-   npm.cmd run build
-   ```
+### 4. Build Frontend Bundle
+```powershell
+cd frontend; npm.cmd run build; cd ..
+```

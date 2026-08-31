@@ -8,6 +8,7 @@ The AssetVault API conforms to REST style conventions, returning and accepting J
 
 ### 1. Library Folders & In-Place Scanning
 - **Create Library Folder**: `POST /api/folders`
+  - Automatically scans and indexes the target folder on disk upon creation.
   - Payload:
     ```json
     {
@@ -23,18 +24,24 @@ The AssetVault API conforms to REST style conventions, returning and accepting J
 - **Update Folder Settings**: `PATCH /api/folders/{id}`
   - Payload: `{ "name": "New Name", "is_recursive": false, "auto_tag_folder": true, "custom_tags": ["Work"] }`
 - **Remove Folder from Library**: `DELETE /api/folders/{id}`
-- **Scan Single Folder**: `POST /api/folders/{id}/scan`
-  - Response:
+- **Get Subfolder Hierarchy Tree**: `GET /api/folders/{id}/tree`
+  - Returns nested subdirectories with recursive `asset_count` badges:
     ```json
     {
-      "folder_id": "uuid-string",
-      "folder_path": "D:\\Media\\Photos",
-      "total_scanned": 150,
-      "newly_indexed": 12,
-      "already_indexed": 138,
-      "errors": []
+      "path": "D:\\Media",
+      "name": "Media",
+      "asset_count": 8289,
+      "children": [
+        {
+          "path": "D:\\Media\\2024",
+          "name": "2024",
+          "asset_count": 1250,
+          "children": []
+        }
+      ]
     }
     ```
+- **Scan Single Folder**: `POST /api/folders/{id}/scan`
 - **Scan All Active Folders**: `POST /api/folders/scan-all`
 - **Open Native Folder Picker Dialog**: `POST /api/folders/picker`
 
@@ -62,11 +69,13 @@ The AssetVault API conforms to REST style conventions, returning and accepting J
 - **Method**: `GET`
 - **Query Parameters**:
   - `page`: `int` (default: `1`, minimum: `1`)
-  - `pageSize`: `int` (default: `20`, range: `1` to `10000`)
+  - `pageSize`: `int` (default: `50`, range: `1` to `10000`)
   - `sortBy`: `str` (default: `"created_at"`, options: `"created_at"`, `"name"`, `"size"`)
   - `sortDir`: `str` (default: `"desc"`, options: `"asc"`, `"desc"`)
-  - `search`: `str` (default: `""`)
-  - `tags`: `str` (comma-separated list of tags for AND-logic filtering)
+  - `search`: `str` (full-text search query across filenames, descriptions, and tags)
+  - `folder_id`: `Optional[str]` (filters strictly to a registered parent library folder)
+  - `subfolder_path`: `Optional[str]` (filters strictly to a specific subfolder path prefix)
+  - `tags`: `Optional[List[str]]` (comma-separated or list of tags for AND-logic filtering, matching both `#tag` and `tag`)
 - **Response**: `200 OK`
 ```json
 {
@@ -78,36 +87,39 @@ The AssetVault API conforms to REST style conventions, returning and accepting J
       "mime_type": "image/jpeg",
       "size_bytes": 204800,
       "storage_path": "D:\\Media\\Photos\\sample.jpg",
-      "description": "Asset description",
+      "description": "",
       "folder_id": "folder-uuid",
       "file_modified_at": "2026-08-31T11:00:00.000Z",
-      "thumbnail_path": null,
+      "thumbnail_path": "D:\\Projects\\asset-vault\\.cache\\thumbnails\\...webp",
       "created_at": "2026-08-31T11:00:00.000Z",
       "absolute_path": "D:\\Media\\Photos\\sample.jpg",
       "tags": [
-        { "id": "tag-1", "name": "jpg" },
-        { "id": "tag-2", "name": "sample.jpg" },
-        { "id": "tag-3", "name": "Photos" },
-        { "id": "tag-4", "name": "2026" }
+        { "id": "tag-1", "name": "#jpg" },
+        { "id": "tag-2", "name": "#sample.jpg" },
+        { "id": "tag-3", "name": "#Photos" },
+        { "id": "tag-4", "name": "#2026" }
       ]
     }
   ],
-  "total": 1,
+  "total": 8289,
   "page": 1,
-  "pageSize": 20,
-  "totalPages": 1
+  "pageSize": 50,
+  "totalPages": 166
 }
 ```
 
 ---
 
-### 4. File Upload (Internal Vault Mode)
-- **URL**: `/api/upload`
-- **Method**: `POST`
-- **Content-Types**:
-  - `multipart/form-data`: `file` (file payload), `description` (optional text), `tags` (optional comma-separated string). Automatically tags complete filename, filetype extension, and current year.
-  - `application/json`: `AssetCreate` schema payload.
-- **Response**: `201 Created` (returns created `AssetResponse`).
+### 4. Media Thumbnails & Cache Management
+- **Get Media Thumbnail**: `GET /api/assets/{id}/thumbnail?width=350&height=350`
+  - Generates/serves high-performance WebP thumbnail with disk caching.
+  - Supports Images, PDFs (`pypdfium2`), and Videos (native Windows Shell `IThumbnailProvider` frame extraction with play badge overlay).
+- **Get Cache Statistics**: `GET /api/cache/stats`
+  - Returns `{ "total_cached_thumbnails": 120, "total_size_bytes": 4500000, "total_size_mb": 4.29 }`.
+- **Clear Thumbnail Cache**: `POST /api/cache/clear`
+  - Flushes all cached `.webp` files from disk and resets database cache paths.
+- **Full Library Rescan & Integrity Flush**: `POST /api/library/rescan`
+  - Flushes thumbnail cache, purges missing files, and re-indexes all active library folders.
 
 ---
 
@@ -115,8 +127,8 @@ The AssetVault API conforms to REST style conventions, returning and accepting J
 - **Get Asset Details**: `GET /api/asset/{id}`
 - **Update Asset**: `PUT /api/asset/{id}`
   - Payload: `{ "name": "new_name", "description": "new desc", "tags": ["tag1", "tag2"] }`
-- **Delete Asset**: `DELETE /api/asset/{id}` (or `DELETE /api/file` with `{ "id": "uuid" }`)
-- **Download Asset File**: `GET /api/asset/{id}/download` (returns raw file stream)
+- **Delete Asset**: `DELETE /api/asset/{id}`
+- **Download Asset File**: `GET /api/asset/{id}/download` (or `/content`)
 
 ---
 
@@ -137,26 +149,23 @@ The AssetVault API conforms to REST style conventions, returning and accepting J
 
 ---
 
-### 7. Multi-Asset ZIP Download
-- **URL**: `/api/assets/download-zip?ids=id1,id2,id3`
-- **Method**: `GET`
-- **Response**: Binary `.zip` file stream containing all requested files.
-
----
-
-### 8. Backup, Restore & Verification
+### 7. Multi-Asset ZIP Download & Backups
+- **Download ZIP Selection**: `GET /api/assets/download-zip?ids=id1,id2,id3`
 - **Download Complete Backup Archive**: `GET /api/assets/backup`
 - **Download CSV Database Export**: `GET /api/assets/backup/csv`
-- **Restore Database from CSV**: `POST /api/assets/restore/csv` (multipart file upload)
-- **Restore System from ZIP Archive**: `POST /api/assets/restore/zip` (multipart file upload)
+- **Restore Database from CSV**: `POST /api/assets/restore/csv`
 - **Generate Integrity Verification Log**: `GET /api/assets/verify`
 
 ---
 
-### 9. Settings & Storage Path Management
-- **Get Storage Path**: `GET /api/settings/storage`
-- **Update Storage Directory**: `POST /api/settings/storage`
-  - Payload: `{ "storage_dir": "D:\\NewStorage", "password": "SYSTEM_PASSWORD" }`
-- **Browse Storage Directories**: `GET /api/settings/storage/browse?path=D:\\`
-- **Purge All Assets**: `POST /api/assets/purge`
-  - Payload: `{ "password": "SYSTEM_PASSWORD" }`
+### 8. Real-Time File System Events (WebSocket)
+- **URL**: `ws://127.0.0.1:8000/api/ws/events`
+- **Protocol**: JSON event stream broadcasted by `WatchdogHandler`:
+  ```json
+  {
+    "event": "created",
+    "asset_id": "uuid-string",
+    "file_path": "D:\\Media\\new_file.jpg",
+    "timestamp": "2026-08-31T12:00:00.000Z"
+  }
+  ```
