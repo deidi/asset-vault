@@ -214,9 +214,17 @@ class LibraryEventHandler(FileSystemEventHandler):
             tag_names.append(str(mtime.year))
 
             if folder.auto_tag_folder:
-                parent_name = os.path.basename(os.path.dirname(norm_path))
-                if parent_name:
-                    tag_names.append(parent_name)
+                try:
+                    rel_dir = os.path.relpath(os.path.dirname(norm_path), folder.path)
+                    if rel_dir and rel_dir != ".":
+                        for part in rel_dir.split(os.sep):
+                            clean_part = part.strip()
+                            if clean_part and not clean_part.startswith("."):
+                                tag_names.append(clean_part)
+                except Exception:
+                    pass
+                if folder.name:
+                    tag_names.append(folder.name)
 
             if folder.custom_tags:
                 for custom_tag in folder.custom_tags.split(","):

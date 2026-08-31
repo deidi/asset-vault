@@ -34,6 +34,9 @@ def main():
 
     # 3. Package Executable with PyInstaller
     print("\n[3/3] Packaging Standalone Application with PyInstaller...")
+    if os.name == "nt":
+        subprocess.run(["powershell.exe", "-Command", "Stop-Process -Name AssetVault -Force -ErrorAction SilentlyContinue"], capture_output=True)
+
     spec_file = os.path.join(root_dir, "assetvault.spec")
     pyinstaller_res = subprocess.run([
         python_exe,

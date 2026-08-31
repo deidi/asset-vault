@@ -119,28 +119,44 @@ def delete_asset(req_body: DeleteRequest, db: Session = Depends(get_db)):
     deleted = asset_service.delete_asset(req_body.id)
     return {"deleted": deleted}
 
-# 🚀 NEW ROUTE SPECIFICATIONS FOR TASK 005 & EXTENSIONS
+# 🚀 ASSET INVENTORY PAGINATED & FILTERED QUERY ROUTE
 @router.get("/assets", response_model=InventoryResponse)
 def get_assets_paginated(
     page: int = Query(1, ge=1),
-    pageSize: int = Query(20, ge=1, le=10000),
-    sortBy: str = Query("created_at"),
-    sortDir: str = Query("desc"),
+    pageSize: Optional[int] = Query(None),
+    page_size: Optional[int] = Query(None),
+    sortBy: Optional[str] = Query(None),
+    sort_by: Optional[str] = Query(None),
+    sortDir: Optional[str] = Query(None),
+    sort_dir: Optional[str] = Query(None),
+    sortOrder: Optional[str] = Query(None),
+    sort_order: Optional[str] = Query(None),
     search: str = Query(""),
+    folder_id: Optional[str] = Query(None),
+    folderId: Optional[str] = Query(None),
     tags: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
     asset_service = AssetService(db)
-    db_sort_by = sortBy
-    if sortBy == "size":
-         db_sort_by = "size_bytes"
+    
+    # Resolve aliases
+    final_page_size = page_size or pageSize or 50
+    final_sort_by = sort_by or sortBy or "created_at"
+    final_sort_dir = sort_dir or sortDir or sort_order or sortOrder or "desc"
+    final_folder_id = folder_id or folderId
+
+    db_sort_by = final_sort_by
+    if final_sort_by == "size":
+        db_sort_by = "size_bytes"
+
     return asset_service.get_inventory(
         page=page,
-        page_size=pageSize,
+        page_size=final_page_size,
         sort_by=db_sort_by,
-        sort_dir=sortDir,
+        sort_dir=final_sort_dir,
         search=search,
-        tags=tags
+        tags=tags,
+        folder_id=final_folder_id
     )
 
 @router.get("/asset/{id}", response_model=AssetResponse)

@@ -141,8 +141,15 @@ class FolderService:
         # Find all media files
         file_paths: List[str] = []
         if folder.is_recursive:
-            for root, _, filenames in os.walk(folder.path):
+            for root, dirs, filenames in os.walk(folder.path, followlinks=True):
+                # Exclude hidden, system, and unwanted directories from traversal
+                dirs[:] = [
+                    d for d in dirs 
+                    if not d.startswith((".", "$")) and d.lower() not in {"system volume information", "node_modules", ".git", "$recycle.bin"}
+                ]
                 for filename in filenames:
+                    if filename.startswith((".", "~$")):
+                        continue
                     _, ext = os.path.splitext(filename)
                     if ext.lower() in SUPPORTED_EXTENSIONS:
                         file_paths.append(os.path.normpath(os.path.join(root, filename)))
@@ -150,6 +157,8 @@ class FolderService:
             try:
                 for entry in os.scandir(folder.path):
                     if entry.is_file():
+                        if entry.name.startswith((".", "~$")):
+                            continue
                         _, ext = os.path.splitext(entry.name)
                         if ext.lower() in SUPPORTED_EXTENSIONS:
                             file_paths.append(os.path.normpath(entry.path))
@@ -193,11 +202,19 @@ class FolderService:
                 year_tag = f"#{mtime.year}"
                 tag_names_to_add.append(year_tag)
 
-                # 4. Folder name tag (if enabled)
+                # 4. Folder name tags (all directory levels down to file)
                 if folder.auto_tag_folder:
-                    parent_dir_name = os.path.basename(os.path.dirname(file_path))
-                    if parent_dir_name:
-                        tag_names_to_add.append(f"#{parent_dir_name}")
+                    try:
+                        rel_dir = os.path.relpath(os.path.dirname(file_path), folder.path)
+                        if rel_dir and rel_dir != ".":
+                            for part in rel_dir.split(os.sep):
+                                clean_part = part.strip()
+                                if clean_part and not clean_part.startswith("."):
+                                    tag_names_to_add.append(f"#{clean_part}")
+                    except Exception:
+                        pass
+                    if folder.name:
+                        tag_names_to_add.append(f"#{folder.name}")
 
                 # 5. Custom configured folder tags
                 for custom_tag in configured_custom_tags:

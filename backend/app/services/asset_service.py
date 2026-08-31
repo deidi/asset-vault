@@ -461,10 +461,14 @@ class AssetService:
         sort_by: str = "created_at",
         sort_dir: str = "desc",
         search: str = "",
-        tags: Optional[str] = None
+        tags: Optional[str] = None,
+        folder_id: Optional[str] = None
     ) -> dict:
         query = self.db.query(Asset)
         
+        if folder_id and folder_id.strip():
+            query = query.filter(Asset.folder_id == folder_id.strip())
+
         if search.strip():
             term = f"%{search.strip().lower()}%"
             query = query.filter(
