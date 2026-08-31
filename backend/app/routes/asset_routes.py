@@ -184,6 +184,9 @@ def update_asset(id: str, asset_update: AssetUpdate, db: Session = Depends(get_d
     return updated
 
 @router.get("/asset/{id}/download")
+@router.get("/assets/{id}/download")
+@router.get("/asset/{id}/content")
+@router.get("/assets/{id}/content")
 def download_asset_file(id: str, db: Session = Depends(get_db)):
     asset_service = AssetService(db)
     asset = asset_service.get_asset_by_id(id)
@@ -197,7 +200,8 @@ def download_asset_file(id: str, db: Session = Depends(get_db)):
     return FileResponse(
         path=abs_file_path,
         filename=asset.original_name,
-        media_type=asset.mime_type or "application/octet-stream"
+        media_type=asset.mime_type or "application/octet-stream",
+        content_disposition_type="inline"
     )
 
 @router.get("/assets/download-zip")

@@ -64,11 +64,12 @@ export const PreviewModal: React.FC<PreviewModalProps> = ({
 
   if (!asset) return null;
 
-  const mime = asset.mime_type.toLowerCase();
-  const isImage = mime.startsWith('image/');
-  const isVideo = mime.startsWith('video/');
-  const isAudio = mime.startsWith('audio/');
-  const isPdf = mime.includes('pdf');
+  const ext = (asset.name.split('.').pop() || '').toLowerCase();
+  const mime = (asset.mime_type || '').toLowerCase();
+  const isImage = mime.startsWith('image/') || ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg', 'bmp', 'ico', 'jfif', 'tiff'].includes(ext);
+  const isVideo = mime.startsWith('video/') || ['mp4', 'webm', 'mov', 'mkv', 'avi', 'wmv', 'flv', 'm4v'].includes(ext);
+  const isAudio = mime.startsWith('audio/') || ['mp3', 'wav', 'ogg', 'flac', 'm4a', 'aac', 'wma'].includes(ext);
+  const isPdf = mime.includes('pdf') || ext === 'pdf';
   const mediaUrl = getMediaFileUrl(asset.id);
 
   const handleZoomIn = () => setZoom((z) => Math.min(z + 0.25, 4));

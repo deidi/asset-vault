@@ -127,7 +127,14 @@ class AssetService:
         asset = self.asset_repo.find_by_id(id)
         if not asset or not asset.storage_path:
             return None
-        return os.path.abspath(os.path.join(self._get_storage_dir(), os.path.basename(asset.storage_path)))
+        # 1. Check if storage_path points directly to an existing in-place file
+        if os.path.exists(asset.storage_path):
+            return os.path.abspath(asset.storage_path)
+        # 2. Check internal storage fallback
+        storage_file = os.path.abspath(os.path.join(self._get_storage_dir(), os.path.basename(asset.storage_path)))
+        if os.path.exists(storage_file):
+            return storage_file
+        return os.path.abspath(asset.storage_path)
 
     def _generate_unique_name(self, base_name: str) -> str:
         name_without_ext, ext = os.path.splitext(base_name)
