@@ -31,6 +31,18 @@ class TestAssetService(unittest.TestCase):
         # Override storage dir method for test isolation
         self.service._get_storage_dir = lambda: self.temp_storage
 
+        # Ensure a test library folder exists
+        from app.models.library_folder import LibraryFolder
+        test_folder = LibraryFolder(
+            id="test-library-folder-id",
+            path=self.temp_storage,
+            name="Test Library",
+            is_recursive=True,
+            is_active=True
+        )
+        self.db.add(test_folder)
+        self.db.commit()
+
     def tearDown(self):
         self.db.close()
         if os.path.exists(self.temp_storage):

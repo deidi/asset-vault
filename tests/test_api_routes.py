@@ -34,6 +34,18 @@ class TestAPIRoutes(unittest.TestCase):
                 pass
 
         app.dependency_overrides[get_db] = _get_test_db
+        
+        # Ensure a test library folder exists
+        from app.models.library_folder import LibraryFolder
+        test_folder = LibraryFolder(
+            id="test-library-folder-id",
+            path=self.temp_storage,
+            name="Test Library",
+            is_recursive=True,
+            is_active=True
+        )
+        self.db.add(test_folder)
+        self.db.commit()
 
     def tearDown(self):
         app.dependency_overrides.clear()

@@ -198,6 +198,10 @@ class AssetService:
                 if tag_name.strip():
                     tag_objects.append(self.tag_service.get_or_create_tag(tag_name))
         
+        # If active library folders exist, assign to matching or first active library folder
+        active_folder = self.db.query(LibraryFolder).filter(LibraryFolder.is_active == True).first()
+        folder_id = active_folder.id if active_folder else None
+
         creation_dict = {
             "name": asset_data.name.strip(),
             "original_name": asset_data.originalName.strip() if asset_data.originalName else asset_data.name.strip(),
@@ -205,6 +209,7 @@ class AssetService:
             "size_bytes": asset_data.sizeBytes if asset_data.sizeBytes is not None else 0,
             "storage_path": asset_data.storagePath if asset_data.storagePath else "",
             "description": asset_data.description if asset_data.description else None,
+            "folder_id": folder_id,
             "tags": tag_objects
         }
         
@@ -480,18 +485,21 @@ class AssetService:
         active_folders = self.db.query(LibraryFolder).filter(LibraryFolder.is_active == True).all()
         active_folder_ids = [f.id for f in active_folders]
 
+        if not active_folder_ids:
+            # If no library folders exist in the system, return empty list
+            return {
+                "items": [],
+                "total": 0,
+                "page": page,
+                "pageSize": page_size,
+                "totalPages": 0
+            }
+
         if folder_id and folder_id.strip():
             query = query.filter(Asset.folder_id == folder_id.strip())
-        elif active_folder_ids:
-            query = query.filter(
-                or_(
-                    Asset.folder_id.in_(active_folder_ids),
-                    Asset.folder_id == None
-                )
-            )
         else:
-            # If no library folders are registered, do not return in-place library assets
-            query = query.filter(Asset.folder_id == None)
+            # When viewing All Assets, only return assets belonging to active library folders
+            query = query.filter(Asset.folder_id.in_(active_folder_ids))
 
         filter_path = subfolder_path or path_prefix
         if filter_path and filter_path.strip():

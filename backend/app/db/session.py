@@ -39,9 +39,17 @@ def init_db(target_engine=None):
                 if "thumbnail_path" not in existing_columns:
                     conn.execute(text("ALTER TABLE files ADD COLUMN thumbnail_path VARCHAR"))
                     logger.info("Migrated schema: Added files.thumbnail_path column.")
-                conn.commit()
+
+            # Auto-cleanup orphaned asset references if folders were removed
+            cursor = conn.execute(text("SELECT COUNT(*) FROM library_folders"))
+            folder_count = cursor.fetchone()[0]
+            if folder_count == 0:
+                conn.execute(text("DELETE FROM files"))
+            else:
+                conn.execute(text("DELETE FROM files WHERE folder_id IS NOT NULL AND folder_id NOT IN (SELECT id FROM library_folders)"))
+            conn.commit()
     except Exception as e:
-        logger.debug(f"Schema migration note: {e}")
+        logger.debug(f"Schema migration / cleanup note: {e}")
 
 def get_db():
     db = SessionLocal()
