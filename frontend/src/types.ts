@@ -15,6 +15,14 @@ export interface LibraryFolder {
   asset_count?: number;
 }
 
+export interface FolderTreeNode {
+  name: string;
+  path: string;
+  relative_path: string;
+  asset_count: number;
+  children: FolderTreeNode[];
+}
+
 export interface Asset {
   id: string;
   name: string;

@@ -1,4 +1,4 @@
-import type { Asset, LibraryFolder, InventoryResponse, FolderScanResult, CacheStats } from './types';
+import type { Asset, LibraryFolder, FolderTreeNode, InventoryResponse, FolderScanResult, CacheStats } from './types';
 
 const API_BASE = '/api';
 
@@ -8,6 +8,7 @@ export async function fetchAssets(params: {
   tags?: string[];
   search?: string;
   folderId?: string;
+  subfolderPath?: string;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
 }): Promise<InventoryResponse> {
@@ -16,6 +17,7 @@ export async function fetchAssets(params: {
   if (params.pageSize) query.append('page_size', params.pageSize.toString());
   if (params.search) query.append('search', params.search);
   if (params.folderId) query.append('folder_id', params.folderId);
+  if (params.subfolderPath) query.append('subfolder_path', params.subfolderPath);
   if (params.sortBy) query.append('sort_by', params.sortBy);
   if (params.sortOrder) query.append('sort_order', params.sortOrder);
   if (params.tags && params.tags.length > 0) {
@@ -30,6 +32,12 @@ export async function fetchAssets(params: {
 export async function fetchFolders(): Promise<LibraryFolder[]> {
   const res = await fetch(`${API_BASE}/folders`);
   if (!res.ok) throw new Error(`Failed to fetch library folders: ${res.statusText}`);
+  return res.json();
+}
+
+export async function fetchFolderTree(folderId: string): Promise<FolderTreeNode> {
+  const res = await fetch(`${API_BASE}/folders/${folderId}/tree`);
+  if (!res.ok) throw new Error(`Failed to fetch folder tree: ${res.statusText}`);
   return res.json();
 }
 

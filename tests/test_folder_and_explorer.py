@@ -137,5 +137,33 @@ class TestFolderAndExplorerService(unittest.TestCase):
         self.assertIsNone(asset_repo.find_by_id(asset_id))
         self.assertFalse(os.path.exists(self.img1_path))
 
+    def test_folder_tree_and_subfolder_filtering(self):
+        folder_service = FolderService(self.db)
+        from app.services.asset_service import AssetService
+        asset_service = AssetService(self.db)
+
+        folder_res = folder_service.add_folder(LibraryFolderCreate(
+            path=self.temp_dir,
+            name="TreeTest",
+            is_recursive=True
+        ))
+        folder_service.scan_folder(folder_res.id)
+
+        # 1. Fetch tree
+        tree = folder_service.get_folder_tree(folder_res.id)
+        self.assertEqual(tree.name, "TreeTest")
+        self.assertEqual(tree.asset_count, 2)
+        self.assertEqual(len(tree.children), 1)
+        self.assertEqual(tree.children[0].name, "subfolder")
+        self.assertEqual(tree.children[0].asset_count, 1)
+
+        # 2. Query inventory with subfolder path
+        subfolder_inventory = asset_service.get_inventory(
+            folder_id=folder_res.id,
+            subfolder_path=self.sub_dir
+        )
+        self.assertEqual(subfolder_inventory["total"], 1)
+        self.assertEqual(subfolder_inventory["items"][0].name, "clip.mp4")
+
 if __name__ == "__main__":
     unittest.main()

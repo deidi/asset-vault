@@ -469,12 +469,25 @@ class AssetService:
         sort_dir: str = "desc",
         search: str = "",
         tags: Optional[str] = None,
-        folder_id: Optional[str] = None
+        folder_id: Optional[str] = None,
+        subfolder_path: Optional[str] = None,
+        path_prefix: Optional[str] = None
     ) -> dict:
         query = self.db.query(Asset)
         
         if folder_id and folder_id.strip():
             query = query.filter(Asset.folder_id == folder_id.strip())
+
+        filter_path = subfolder_path or path_prefix
+        if filter_path and filter_path.strip():
+            norm_filter_path = os.path.normpath(filter_path.strip())
+            query = query.filter(
+                or_(
+                    Asset.storage_path == norm_filter_path,
+                    Asset.storage_path.startswith(norm_filter_path + os.sep),
+                    Asset.storage_path.startswith(norm_filter_path + "/")
+                )
+            )
 
         if search.strip():
             term = f"%{search.strip().lower()}%"

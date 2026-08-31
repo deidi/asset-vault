@@ -28,6 +28,7 @@ export const App: React.FC = () => {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [folders, setFolders] = useState<LibraryFolder[]>([]);
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
+  const [selectedSubfolderPath, setSelectedSubfolderPath] = useState<string | null>(null);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<string>('created_at');
@@ -54,6 +55,7 @@ export const App: React.FC = () => {
           pageSize: 500,
           search: searchQuery || undefined,
           folderId: selectedFolderId || undefined,
+          subfolderPath: selectedSubfolderPath || undefined,
           tags: selectedTags.length > 0 ? selectedTags : undefined,
           sortBy,
           sortOrder,
@@ -68,7 +70,7 @@ export const App: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [searchQuery, selectedFolderId, selectedTags, sortBy, sortOrder]);
+  }, [searchQuery, selectedFolderId, selectedSubfolderPath, selectedTags, sortBy, sortOrder]);
 
   // Initial Load & Debounced Filter Trigger
   useEffect(() => {
@@ -155,9 +157,16 @@ export const App: React.FC = () => {
     }
   };
 
-  const activeFolderName = selectedFolderId
-    ? folders.find((f) => f.id === selectedFolderId)?.name || 'Folder'
-    : 'All Library Assets';
+  const activeFolderName = useMemo(() => {
+    if (selectedSubfolderPath) {
+      const parts = selectedSubfolderPath.split(/[\\/]/).filter(Boolean);
+      return parts.length > 0 ? parts[parts.length - 1] : 'Subfolder';
+    }
+    if (selectedFolderId) {
+      return folders.find((f) => f.id === selectedFolderId)?.name || 'Folder';
+    }
+    return 'All Library Assets';
+  }, [selectedFolderId, selectedSubfolderPath, folders]);
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#090e1c] text-slate-100 font-sans antialiased select-none">
@@ -165,8 +174,10 @@ export const App: React.FC = () => {
       <Sidebar
         folders={folders}
         selectedFolderId={selectedFolderId}
-        onSelectFolder={(id) => {
+        selectedSubfolderPath={selectedSubfolderPath}
+        onSelectFolder={(id, sPath) => {
           setSelectedFolderId(id);
+          setSelectedSubfolderPath(sPath || null);
           setSelectedAssetIds([]);
         }}
         onOpenAddFolder={() => setIsAddFolderOpen(true)}

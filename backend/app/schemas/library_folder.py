@@ -30,6 +30,15 @@ class LibraryFolderResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class FolderTreeNode(BaseModel):
+    name: str
+    path: str
+    relative_path: str
+    asset_count: int = 0
+    children: List['FolderTreeNode'] = []
+
+FolderTreeNode.model_rebuild()
+
 class FolderScanResult(BaseModel):
     folder_id: str
     folder_path: str

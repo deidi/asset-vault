@@ -1,22 +1,25 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Folder,
+  FolderOpen,
   FolderPlus,
   RefreshCw,
   Trash2,
-  HardDrive,
   Database,
   Search,
   ChevronRight,
-  Layers
+  ChevronDown,
+  Layers,
+  FolderTree as FolderTreeIcon
 } from 'lucide-react';
-import type { LibraryFolder } from '../types';
-import { scanFolder, scanAllFolders, deleteFolder, revealInExplorer } from '../api';
+import type { LibraryFolder, FolderTreeNode } from '../types';
+import { scanFolder, scanAllFolders, deleteFolder, revealInExplorer, fetchFolderTree } from '../api';
 
 interface SidebarProps {
   folders: LibraryFolder[];
   selectedFolderId: string | null;
-  onSelectFolder: (folderId: string | null) => void;
+  selectedSubfolderPath: string | null;
+  onSelectFolder: (folderId: string | null, subfolderPath?: string | null) => void;
   onOpenAddFolder: () => void;
   onOpenCacheManager: () => void;
   onRefreshLibrary: () => void;
@@ -27,9 +30,95 @@ interface SidebarProps {
   isWsConnected: boolean;
 }
 
+interface TreeNodeProps {
+  node: FolderTreeNode;
+  folderId: string;
+  selectedFolderId: string | null;
+  selectedSubfolderPath: string | null;
+  onSelect: (folderId: string, path: string) => void;
+  depth: number;
+}
+
+const SubfolderTreeNode: React.FC<TreeNodeProps> = ({
+  node,
+  folderId,
+  selectedFolderId,
+  selectedSubfolderPath,
+  onSelect,
+  depth
+}) => {
+  const [isExpanded, setIsExpanded] = useState(true);
+  const hasChildren = node.children && node.children.length > 0;
+  const isSelected = selectedFolderId === folderId && selectedSubfolderPath === node.path;
+
+  return (
+    <div className="flex flex-col select-none">
+      <div
+        onClick={() => onSelect(folderId, node.path)}
+        style={{ paddingLeft: `${Math.max(12, depth * 14)}px` }}
+        className={`group flex items-center justify-between pr-2 py-1.5 rounded-lg text-xs cursor-pointer transition-all ${
+          isSelected
+            ? 'bg-blue-600/25 text-blue-300 font-semibold border border-blue-500/40'
+            : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+        }`}
+      >
+        <div className="flex items-center space-x-1.5 truncate">
+          {hasChildren ? (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsExpanded(!isExpanded);
+              }}
+              className="p-0.5 hover:bg-slate-700/60 rounded text-slate-400 hover:text-slate-200 transition-colors"
+            >
+              {isExpanded ? (
+                <ChevronDown className="w-3.5 h-3.5" />
+              ) : (
+                <ChevronRight className="w-3.5 h-3.5" />
+              )}
+            </button>
+          ) : (
+            <span className="w-3.5 h-3.5 shrink-0" />
+          )}
+
+          {isSelected ? (
+            <FolderOpen className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+          ) : (
+            <Folder className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-300 shrink-0" />
+          )}
+          <span className="truncate">{node.name}</span>
+        </div>
+
+        {node.asset_count > 0 && (
+          <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-800/80 text-slate-400 group-hover:text-slate-300 shrink-0 ml-1">
+            {node.asset_count}
+          </span>
+        )}
+      </div>
+
+      {hasChildren && isExpanded && (
+        <div className="flex flex-col space-y-0.5 mt-0.5 border-l border-slate-800/60 ml-3">
+          {node.children.map((child) => (
+            <SubfolderTreeNode
+              key={child.path}
+              node={child}
+              folderId={folderId}
+              selectedFolderId={selectedFolderId}
+              selectedSubfolderPath={selectedSubfolderPath}
+              onSelect={onSelect}
+              depth={depth + 1}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const Sidebar: React.FC<SidebarProps> = ({
   folders,
   selectedFolderId,
+  selectedSubfolderPath,
   onSelectFolder,
   onOpenAddFolder,
   onOpenCacheManager,
@@ -43,12 +132,48 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [tagSearch, setTagSearch] = useState('');
   const [isScanningAll, setIsScanningAll] = useState(false);
   const [scanningFolderId, setScanningFolderId] = useState<string | null>(null);
+  const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
+  const [folderTrees, setFolderTrees] = useState<Record<string, FolderTreeNode>>({});
+  const [loadingTrees, setLoadingTrees] = useState<Record<string, boolean>>({});
+
+  // Auto-expand and load tree for selected folder
+  const loadTree = async (folderId: string) => {
+    if (folderTrees[folderId] || loadingTrees[folderId]) return;
+    setLoadingTrees((prev) => ({ ...prev, [folderId]: true }));
+    try {
+      const tree = await fetchFolderTree(folderId);
+      setFolderTrees((prev) => ({ ...prev, [folderId]: tree }));
+    } catch (err) {
+      console.warn(`Failed loading tree for folder ${folderId}:`, err);
+    } finally {
+      setLoadingTrees((prev) => ({ ...prev, [folderId]: false }));
+    }
+  };
+
+  const toggleFolderExpansion = (folderId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const willExpand = !expandedFolders[folderId];
+    setExpandedFolders((prev) => ({ ...prev, [folderId]: willExpand }));
+    if (willExpand) {
+      loadTree(folderId);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedFolderId) {
+      setExpandedFolders((prev) => ({ ...prev, [selectedFolderId]: true }));
+      loadTree(selectedFolderId);
+    }
+  }, [selectedFolderId]);
 
   const handleScanFolder = async (folderId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setScanningFolderId(folderId);
     try {
       await scanFolder(folderId);
+      // Reload tree
+      const tree = await fetchFolderTree(folderId);
+      setFolderTrees((prev) => ({ ...prev, [folderId]: tree }));
       onRefreshLibrary();
     } catch {
       // error handled in api
@@ -61,6 +186,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
     setIsScanningAll(true);
     try {
       await scanAllFolders();
+      // Reload all active trees
+      for (const f of folders) {
+        if (expandedFolders[f.id]) {
+          const tree = await fetchFolderTree(f.id);
+          setFolderTrees((prev) => ({ ...prev, [f.id]: tree }));
+        }
+      }
       onRefreshLibrary();
     } catch {
       // error handled in api
@@ -115,9 +247,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* All Media View */}
         <div>
           <button
-            onClick={() => onSelectFolder(null)}
+            onClick={() => onSelectFolder(null, null)}
             className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-              selectedFolderId === null
+              selectedFolderId === null && selectedSubfolderPath === null
                 ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
                 : 'text-slate-300 hover:bg-slate-800/60 hover:text-slate-100'
             }`}
@@ -156,103 +288,148 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           <div className="space-y-1">
             {folders.map((f) => {
-              const isSelected = selectedFolderId === f.id;
+              const isSelected = selectedFolderId === f.id && selectedSubfolderPath === null;
               const isScanning = scanningFolderId === f.id;
+              const isExpanded = !!expandedFolders[f.id];
+              const tree = folderTrees[f.id];
+              const hasSubfolders = tree && tree.children && tree.children.length > 0;
 
               return (
-                <div
-                  key={f.id}
-                  onClick={() => onSelectFolder(f.id)}
-                  className={`group relative flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium cursor-pointer transition-all ${
-                    isSelected
-                      ? 'bg-slate-800 text-blue-400 font-semibold border border-blue-500/30'
-                      : 'text-slate-300 hover:bg-slate-800/50 hover:text-slate-100'
-                  }`}
-                >
-                  <div className="flex items-center space-x-2.5 truncate pr-2">
-                    <Folder className={`w-4 h-4 shrink-0 ${isSelected ? 'text-blue-400' : 'text-slate-400'}`} />
-                    <span className="truncate">{f.name}</span>
+                <div key={f.id} className="flex flex-col">
+                  <div
+                    onClick={() => onSelectFolder(f.id, null)}
+                    className={`group relative flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-medium cursor-pointer transition-all ${
+                      isSelected
+                        ? 'bg-slate-800 text-blue-400 font-semibold border border-blue-500/30'
+                        : 'text-slate-300 hover:bg-slate-800/50 hover:text-slate-100'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-2 truncate pr-2">
+                      <button
+                        onClick={(e) => toggleFolderExpansion(f.id, e)}
+                        className="p-0.5 hover:bg-slate-700/60 rounded text-slate-400 hover:text-slate-200 transition-colors"
+                        title={isExpanded ? 'Collapse subfolders' : 'Expand subfolders'}
+                      >
+                        {isExpanded ? (
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        ) : (
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+
+                      {isSelected ? (
+                        <FolderOpen className="w-4 h-4 text-blue-400 shrink-0" />
+                      ) : (
+                        <Folder className="w-4 h-4 text-slate-400 shrink-0" />
+                      )}
+                      <span className="truncate">{f.name}</span>
+                    </div>
+
+                    <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={(e) => handleScanFolder(f.id, e)}
+                        disabled={isScanning}
+                        className="p-1 rounded text-slate-400 hover:text-blue-400 hover:bg-slate-700 transition-colors"
+                        title="Rescan this folder"
+                      >
+                        <RefreshCw className={`w-3 h-3 ${isScanning ? 'animate-spin' : ''}`} />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          revealInExplorer(undefined, f.id);
+                        }}
+                        className="p-1 rounded text-slate-400 hover:text-blue-400 hover:bg-slate-700 transition-colors"
+                        title="Show folder in Explorer"
+                      >
+                        <FolderTreeIcon className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={(e) => handleDeleteFolder(f.id, e)}
+                        className="p-1 rounded text-slate-400 hover:text-red-400 hover:bg-slate-700 transition-colors"
+                        title="Remove folder"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={(e) => handleScanFolder(f.id, e)}
-                      disabled={isScanning}
-                      className="p-1 text-slate-400 hover:text-blue-400 rounded-md hover:bg-slate-700/60"
-                      title="Rescan this folder"
-                    >
-                      <RefreshCw className={`w-3 h-3 ${isScanning ? 'animate-spin' : ''}`} />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        revealInExplorer(undefined, f.id);
-                      }}
-                      className="p-1 text-slate-400 hover:text-slate-200 rounded-md hover:bg-slate-700/60"
-                      title="Open in Explorer"
-                    >
-                      <HardDrive className="w-3 h-3" />
-                    </button>
-                    <button
-                      onClick={(e) => handleDeleteFolder(f.id, e)}
-                      className="p-1 text-slate-400 hover:text-rose-400 rounded-md hover:bg-slate-700/60"
-                      title="Remove folder"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  </div>
+                  {/* Subfolder Tree Nodes */}
+                  {isExpanded && hasSubfolders && (
+                    <div className="flex flex-col space-y-0.5 mt-1 ml-4 border-l border-slate-800/60 pl-1">
+                      {tree.children.map((child) => (
+                        <SubfolderTreeNode
+                          key={child.path}
+                          node={child}
+                          folderId={f.id}
+                          selectedFolderId={selectedFolderId}
+                          selectedSubfolderPath={selectedSubfolderPath}
+                          onSelect={(fId, sPath) => onSelectFolder(fId, sPath)}
+                          depth={1}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })}
 
             {folders.length === 0 && (
-              <div
-                onClick={onOpenAddFolder}
-                className="p-3 text-center rounded-xl border border-dashed border-slate-800 hover:border-slate-700 cursor-pointer text-slate-500 hover:text-slate-400 transition-colors"
-              >
-                <span className="text-[11px]">No folders added yet. Click to add.</span>
+              <div className="p-4 rounded-xl border border-dashed border-slate-800 text-center space-y-2">
+                <p className="text-xs text-slate-500">No media folders added yet.</p>
+                <button
+                  onClick={onOpenAddFolder}
+                  className="px-3 py-1.5 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 text-xs font-semibold rounded-lg transition-colors inline-flex items-center space-x-1.5"
+                >
+                  <FolderPlus className="w-3.5 h-3.5" />
+                  <span>Add Folder</span>
+                </button>
               </div>
             )}
           </div>
         </div>
 
-        {/* Tags Section */}
-        <div className="space-y-2 border-t border-slate-800/80 pt-4">
+        {/* Tags Filter Section */}
+        <div className="space-y-2">
           <div className="flex items-center justify-between px-1">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              Filter Tags {selectedTags.length > 0 && `(${selectedTags.length})`}
+              Tags ({availableTags.length})
             </span>
             {selectedTags.length > 0 && (
               <button
                 onClick={onClearTags}
-                className="text-[10px] text-blue-400 hover:text-blue-300 font-semibold"
+                className="text-[10px] text-blue-400 hover:underline font-medium"
               >
-                Clear
+                Clear all ({selectedTags.length})
               </button>
             )}
           </div>
 
-          <div className="relative">
-            <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-500" />
-            <input
-              type="text"
-              placeholder="Search tags..."
-              value={tagSearch}
-              onChange={(e) => setTagSearch(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 bg-slate-950/80 border border-slate-800 rounded-lg text-slate-200 text-xs focus:outline-none focus:border-blue-500"
-            />
-          </div>
+          {/* Search Tags */}
+          {availableTags.length > 8 && (
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-slate-500" />
+              <input
+                type="text"
+                placeholder="Filter tags..."
+                value={tagSearch}
+                onChange={(e) => setTagSearch(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 bg-slate-900/80 border border-slate-800 rounded-lg text-slate-300 text-xs focus:outline-none focus:border-blue-500 transition-all placeholder:text-slate-600"
+              />
+            </div>
+          )}
 
-          <div className="flex flex-wrap gap-1 max-h-48 overflow-y-auto pt-1">
+          {/* Tag List */}
+          <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto pr-1">
             {filteredTags.map((tag) => {
               const isSelected = selectedTags.includes(tag);
               return (
                 <button
                   key={tag}
                   onClick={() => onToggleTag(tag)}
-                  className={`px-2 py-1 rounded-lg text-[11px] font-medium transition-all ${
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
                     isSelected
-                      ? 'bg-blue-600 text-white font-semibold shadow-xs shadow-blue-500/20'
+                      ? 'bg-blue-600 text-white shadow-xs shadow-blue-500/30'
                       : 'bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-slate-200 border border-slate-800/80'
                   }`}
                 >
@@ -260,21 +437,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </button>
               );
             })}
+
+            {filteredTags.length === 0 && (
+              <p className="text-xs text-slate-600 px-1 italic">No matching tags</p>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Footer Controls */}
-      <div className="p-4 border-t border-slate-800 bg-slate-950/40">
+      {/* Sidebar Footer */}
+      <div className="p-3 border-t border-slate-800 bg-slate-950/40 flex items-center justify-between text-xs text-slate-400">
         <button
           onClick={onOpenCacheManager}
-          className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-900 border border-slate-800/60 transition-colors"
+          className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg hover:bg-slate-800/60 hover:text-slate-200 transition-colors w-full"
         >
-          <div className="flex items-center space-x-2">
-            <Database className="w-4 h-4 text-purple-400" />
-            <span>Cache & Diagnostics</span>
-          </div>
-          <ChevronRight className="w-3.5 h-3.5 text-slate-500" />
+          <Database className="w-3.5 h-3.5 text-blue-400" />
+          <span>Storage & Cache</span>
         </button>
       </div>
     </aside>

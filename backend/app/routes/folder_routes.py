@@ -7,7 +7,8 @@ from app.schemas.library_folder import (
     LibraryFolderCreate,
     LibraryFolderUpdate,
     LibraryFolderResponse,
-    FolderScanResult
+    FolderScanResult,
+    FolderTreeNode
 )
 
 router = APIRouter(prefix="/folders", tags=["Folders"])
@@ -48,6 +49,16 @@ def delete_library_folder(folder_id: str, db: Session = Depends(get_db)) -> dict
     if not success:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder not found")
     return {"status": "success", "deleted_folder_id": folder_id}
+
+@router.get("/{folder_id}/tree", response_model=FolderTreeNode)
+def get_library_folder_tree(folder_id: str, db: Session = Depends(get_db)) -> FolderTreeNode:
+    service = FolderService(db)
+    try:
+        return service.get_folder_tree(folder_id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 @router.post("/{folder_id}/scan", response_model=FolderScanResult)
 def scan_library_folder(folder_id: str, db: Session = Depends(get_db)) -> FolderScanResult:
