@@ -2,6 +2,7 @@ from sqlalchemy import or_, desc, asc
 from sqlalchemy.orm import Session
 from app.models.asset import Asset
 from app.models.tag import Tag
+from app.models.library_folder import LibraryFolder
 from app.repositories.asset_repository import AssetRepository
 from app.services.tag_service import TagService
 from app.schemas.asset import AssetCreate, AssetUpdate
@@ -474,9 +475,23 @@ class AssetService:
         path_prefix: Optional[str] = None
     ) -> dict:
         query = self.db.query(Asset)
-        
+
+        # Check active library folders
+        active_folders = self.db.query(LibraryFolder).filter(LibraryFolder.is_active == True).all()
+        active_folder_ids = [f.id for f in active_folders]
+
         if folder_id and folder_id.strip():
             query = query.filter(Asset.folder_id == folder_id.strip())
+        elif active_folder_ids:
+            query = query.filter(
+                or_(
+                    Asset.folder_id.in_(active_folder_ids),
+                    Asset.folder_id == None
+                )
+            )
+        else:
+            # If no library folders are registered, do not return in-place library assets
+            query = query.filter(Asset.folder_id == None)
 
         filter_path = subfolder_path or path_prefix
         if filter_path and filter_path.strip():
