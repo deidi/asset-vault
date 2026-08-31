@@ -8,6 +8,12 @@ import urllib.request
 import uvicorn
 import webview
 
+# Ensure WebView2 user data folder is in writable AppData to prevent Admin / System32 blank screen errors
+appdata_dir = os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))
+wv2_data_dir = os.path.join(appdata_dir, "AssetVault", "webview2_data")
+os.makedirs(wv2_data_dir, exist_ok=True)
+os.environ["WEBVIEW2_USER_DATA_FOLDER"] = wv2_data_dir
+
 # Add backend directory to module search path
 current_dir = os.path.dirname(os.path.abspath(__file__))
 backend_dir = os.path.join(current_dir, "backend")
@@ -55,7 +61,7 @@ def find_available_port(start_port: int = 8000) -> int:
                 return port
     return start_port
 
-def wait_for_server(url: str, timeout: float = 8.0) -> bool:
+def wait_for_server(url: str, timeout: float = 15.0) -> bool:
     """Waits until the backend server responds to HTTP requests."""
     start = time.time()
     while time.time() - start < timeout:

@@ -72,12 +72,34 @@ app.include_router(ws_router, prefix="/api")
 app.include_router(thumbnail_router, prefix="/api")
 
 # Resolve absolute path to the public directory
-current_dir = os.path.dirname(os.path.abspath(__file__))
-if getattr(sys, 'frozen', False):
-    base_dir = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
-    public_dir = os.path.abspath(os.path.join(base_dir, "public"))
-else:
-    public_dir = os.path.abspath(os.path.join(current_dir, "..", "..", "public"))
+def resolve_public_dir() -> str:
+    candidates = []
+    if getattr(sys, 'frozen', False):
+        if hasattr(sys, '_MEIPASS'):
+            candidates.append(os.path.join(sys._MEIPASS, "public"))
+            candidates.append(sys._MEIPASS)
+        exe_dir = os.path.dirname(sys.executable)
+        candidates.append(os.path.join(exe_dir, "public"))
+        candidates.append(exe_dir)
+    
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    candidates.append(os.path.abspath(os.path.join(current_dir, "..", "..", "public")))
+    candidates.append(os.path.abspath(os.path.join(current_dir, "..", "public")))
+    candidates.append(os.path.abspath(os.path.join(current_dir, "public")))
+    candidates.append(os.path.abspath("public"))
+
+    for path in candidates:
+        if os.path.exists(os.path.join(path, "index.html")):
+            return os.path.abspath(path)
+    
+    # Fallback to first existing candidate or default
+    for path in candidates:
+        if os.path.exists(path):
+            return os.path.abspath(path)
+    return candidates[0]
+
+public_dir = resolve_public_dir()
+logger.info(f"Resolved public directory for SPA assets: {public_dir}")
 
 @app.get("/health")
 def health_check():
@@ -88,17 +110,16 @@ def get_version():
     return {"version": "2.0"}
 
 # Mount static assets (JS, CSS, images) from public/assets
-if os.path.exists(public_dir):
-    assets_dir = os.path.join(public_dir, "assets")
-    if os.path.exists(assets_dir):
-        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+assets_dir = os.path.join(public_dir, "assets")
+if os.path.exists(assets_dir):
+    app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
 
 @app.get("/")
 def serve_root_index():
     index_path = os.path.join(public_dir, "index.html")
     if os.path.exists(index_path):
         return FileResponse(index_path)
-    return {"error": "Frontend not built. Run: cd frontend && npm run build"}
+    return {"error": f"Frontend not found at {index_path}. Build frontend with: npm run build"}
 
 @app.get("/assetvault")
 @app.get("/assetvault/")
@@ -110,13 +131,13 @@ def redirect_to_root():
 def serve_spa(full_path: str):
     if full_path.startswith("api/") or full_path == "docs" or full_path == "redoc" or full_path == "openapi.json":
         raise HTTPException(status_code=404, detail="Not found")
-    index_path = os.path.join(public_dir, "index.html")
     candidate = os.path.join(public_dir, full_path)
     if os.path.isfile(candidate):
         return FileResponse(candidate)
+    index_path = os.path.join(public_dir, "index.html")
     if os.path.exists(index_path):
         return FileResponse(index_path)
-    return {"error": "Frontend not built. Run: cd frontend && npm run build"}
+    return {"error": f"Frontend index.html not found at {index_path}"}
 
 if __name__ == "__main__":
     import uvicorn
