@@ -10,7 +10,8 @@ import {
   PanelRightClose,
   ArrowUpDown,
   CheckSquare,
-  Square
+  Square,
+  X
 } from 'lucide-react';
 import type { Asset, LibraryFolder, WebSocketEvent } from './types';
 import { fetchAssets, fetchFolders } from './api';
@@ -181,31 +182,40 @@ export const App: React.FC = () => {
       {/* 2. Main Content Canvas */}
       <main className="flex-1 flex flex-col h-full min-w-0 bg-[#0b1329] overflow-hidden">
         {/* Top Navbar */}
-        <header className="h-16 border-b border-slate-800/80 px-6 flex items-center justify-between bg-slate-900/40 backdrop-blur-md shrink-0">
+        <header className="h-16 border-b border-slate-800/80 px-4 md:px-6 flex items-center justify-between gap-3 bg-slate-900/40 backdrop-blur-md shrink-0">
           {/* Left Title & Status */}
-          <div className="flex items-center space-x-3 truncate">
-            <h2 className="text-base font-bold text-slate-100 truncate">{activeFolderName}</h2>
-            <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-400 font-mono font-medium">
-              {assets.length} {assets.length === 1 ? 'file' : 'files'}
+          <div className="flex items-center space-x-2.5 min-w-0 shrink truncate">
+            <h2 className="text-sm md:text-base font-bold text-slate-100 truncate">{activeFolderName}</h2>
+            <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-mono font-medium shrink-0">
+              {assets.length}
             </span>
           </div>
 
-          {/* Center Search Input */}
-          <div className="flex-1 max-w-md mx-6">
-            <div className="relative">
-              <Search className="w-4 h-4 absolute left-3.5 top-3 text-slate-500" />
+          {/* Dynamic Adaptive Search Input */}
+          <div className="flex-1 min-w-[140px] sm:min-w-[200px] max-w-lg transition-all duration-300 ease-out focus-within:max-w-2xl focus-within:ring-1 focus-within:ring-blue-500/50 rounded-xl">
+            <div className="relative flex items-center">
+              <Search className="w-4 h-4 absolute left-3.5 text-slate-500 pointer-events-none shrink-0" />
               <input
                 type="text"
                 placeholder="Search assets, filenames, tags..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-slate-950/80 border border-slate-800 rounded-xl text-slate-200 text-xs focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                className="w-full pl-10 pr-9 py-2 bg-slate-950/80 border border-slate-800 rounded-xl text-slate-200 text-xs focus:outline-none focus:border-blue-500 transition-all placeholder:text-slate-500 shadow-inner"
               />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 p-1 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/80 transition-colors"
+                  title="Clear search"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
           </div>
 
           {/* Right Toolbar Controls */}
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-1.5 md:space-x-2 shrink-0">
             {/* Select All Toggle */}
             <button
               onClick={handleSelectAll}
