@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { FolderPlus, X, Check, AlertCircle, FolderSearch } from 'lucide-react';
-import { createFolder, pickFolderDialog } from '../api';
+import { createFolder, pickFolderDialog, scanFolder } from '../api';
 import type { LibraryFolder } from '../types';
 
 interface AddFolderModalProps {
@@ -68,6 +68,12 @@ export const AddFolderModal: React.FC<AddFolderModalProps> = ({ isOpen, onClose,
         auto_tag_folder: autoTagFolder,
         custom_tags: customTags,
       });
+      // Automatically scan newly created folder so all files and asset counts appear immediately
+      try {
+        await scanFolder(created.id);
+      } catch (scanErr) {
+        console.warn('Initial folder scan encountered an issue:', scanErr);
+      }
       onFolderAdded(created);
       onClose();
     } catch (err: any) {

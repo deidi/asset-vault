@@ -175,7 +175,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     setScanningFolderId(folderId);
     try {
       await scanFolder(folderId);
-      await loadTree(folderId);
+      const tree = await fetchFolderTree(folderId);
+      setFolderTrees((prev) => ({ ...prev, [folderId]: tree }));
       onRefreshLibrary();
     } catch (err) {
       console.error('Scan folder failed:', err);
@@ -188,6 +189,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
     setIsScanningAll(true);
     try {
       await scanAllFolders();
+      for (const f of folders) {
+        if (expandedFolders[f.id]) {
+          try {
+            const tree = await fetchFolderTree(f.id);
+            setFolderTrees((prev) => ({ ...prev, [f.id]: tree }));
+          } catch {
+            // ignore
+          }
+        }
+      }
       onRefreshLibrary();
     } catch (err) {
       console.error('Scan all failed:', err);
