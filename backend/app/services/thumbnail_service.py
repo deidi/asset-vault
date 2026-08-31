@@ -136,7 +136,187 @@ class ThumbnailService:
         
         return self._render_generic_badge(source_path, output_path, width, height, label="PDF", bg_color=(220, 53, 69))
 
+    def _extract_windows_shell_thumbnail(self, source_path: str, max_dimension: int = 350) -> Optional[Image.Image]:
+        """Extracts native Windows Shell video frame thumbnail via IThumbnailProvider."""
+        try:
+            import ctypes
+            from ctypes import wintypes, POINTER, c_void_p, c_int, c_ulong, Structure, byref, c_wchar_p
+
+            class GUID(Structure):
+                _fields_ = [('Data1', c_ulong), ('Data2', wintypes.WORD), ('Data3', wintypes.WORD), ('Data4', wintypes.BYTE * 8)]
+
+            IID_IShellItem = GUID(0x43826d1e, 0xe718, 0x42ee, (wintypes.BYTE * 8)(0xbc, 0x55, 0xa1, 0xe2, 0x61, 0xc3, 0x7b, 0xfe))
+            BHID_ThumbnailHandler = GUID(0x7b2e650a, 0x8e20, 0x4f4a, (wintypes.BYTE * 8)(0xb0, 0x9e, 0x65, 0x97, 0xaf, 0xc7, 0x2f, 0xb0))
+            IID_IThumbnailProvider = GUID(0xe357fccd, 0xa995, 0x4576, (wintypes.BYTE * 8)(0xb0, 0x1f, 0x23, 0x46, 0x30, 0x15, 0x4e, 0x96))
+
+            class IShellItem(Structure):
+                pass
+
+            class IShellItemVtbl(Structure):
+                _fields_ = [
+                    ('QueryInterface', ctypes.WINFUNCTYPE(ctypes.HRESULT, c_void_p, POINTER(GUID), POINTER(c_void_p))),
+                    ('AddRef', c_void_p),
+                    ('Release', c_void_p),
+                    ('BindToHandler', ctypes.WINFUNCTYPE(ctypes.HRESULT, c_void_p, c_void_p, POINTER(GUID), POINTER(GUID), POINTER(c_void_p)))
+                ]
+
+            IShellItem._fields_ = [('lpVtbl', POINTER(IShellItemVtbl))]
+
+            class IThumbnailProvider(Structure):
+                pass
+
+            class IThumbnailProviderVtbl(Structure):
+                _fields_ = [
+                    ('QueryInterface', ctypes.WINFUNCTYPE(ctypes.HRESULT, c_void_p, POINTER(GUID), POINTER(c_void_p))),
+                    ('AddRef', c_void_p),
+                    ('Release', ctypes.WINFUNCTYPE(c_ulong, c_void_p)),
+                    ('GetThumbnail', ctypes.WINFUNCTYPE(ctypes.HRESULT, c_void_p, wintypes.UINT, POINTER(wintypes.HBITMAP), POINTER(c_int)))
+                ]
+
+            IThumbnailProvider._fields_ = [('lpVtbl', POINTER(IThumbnailProviderVtbl))]
+
+            shell32 = ctypes.windll.shell32
+            gdi32 = ctypes.windll.gdi32
+            user32 = ctypes.windll.user32
+            ole32 = ctypes.windll.ole32
+
+            # COINIT_APARTMENTTHREADED = 0x2, COINIT_MULTITHREADED = 0x0
+            hr_init = ole32.CoInitializeEx(None, 0x2)
+            needs_uninit = (hr_init == 0 or hr_init == 1)
+
+            p_item = POINTER(IShellItem)()
+            p_thumb = c_void_p()
+            hbitmap = wintypes.HBITMAP()
+
+            try:
+                hr = shell32.SHCreateItemFromParsingName(
+                    c_wchar_p(os.path.abspath(source_path)),
+                    None,
+                    byref(IID_IShellItem),
+                    byref(p_item)
+                )
+                if hr != 0 or not p_item:
+                    return None
+
+                hr_bth = p_item.contents.lpVtbl.contents.BindToHandler(
+                    p_item,
+                    None,
+                    byref(BHID_ThumbnailHandler),
+                    byref(IID_IThumbnailProvider),
+                    byref(p_thumb)
+                )
+                if hr_bth != 0 or not p_thumb.value:
+                    return None
+
+                thumb_provider = ctypes.cast(p_thumb, POINTER(IThumbnailProvider))
+                alpha_type = c_int()
+                hr_gt = thumb_provider.contents.lpVtbl.contents.GetThumbnail(thumb_provider, max_dimension, byref(hbitmap), byref(alpha_type))
+                if hr_gt != 0 or not hbitmap.value:
+                    return None
+
+                class BITMAP(Structure):
+                    _fields_ = [
+                        ('bmType', wintypes.LONG),
+                        ('bmWidth', wintypes.LONG),
+                        ('bmHeight', wintypes.LONG),
+                        ('bmWidthBytes', wintypes.LONG),
+                        ('bmPlanes', wintypes.WORD),
+                        ('bmBitsPixel', wintypes.WORD),
+                        ('bmBits', wintypes.LPVOID)
+                    ]
+                bmp = BITMAP()
+                gdi32.GetObjectW(hbitmap, ctypes.sizeof(BITMAP), byref(bmp))
+
+                class BITMAPINFOHEADER(Structure):
+                    _fields_ = [
+                        ('biSize', wintypes.DWORD),
+                        ('biWidth', wintypes.LONG),
+                        ('biHeight', wintypes.LONG),
+                        ('biPlanes', wintypes.WORD),
+                        ('biBitCount', wintypes.WORD),
+                        ('biCompression', wintypes.DWORD),
+                        ('biSizeImage', wintypes.DWORD),
+                        ('biXPelsPerMeter', wintypes.LONG),
+                        ('biYPelsPerMeter', wintypes.LONG),
+                        ('biClrUsed', wintypes.DWORD),
+                        ('biClrImportant', wintypes.DWORD)
+                    ]
+                bih = BITMAPINFOHEADER()
+                bih.biSize = ctypes.sizeof(BITMAPINFOHEADER)
+                bih.biWidth = bmp.bmWidth
+                bih.biHeight = -bmp.bmHeight
+                bih.biPlanes = 1
+                bih.biBitCount = 32
+                bih.biCompression = 0
+
+                buf_size = bmp.bmWidth * bmp.bmHeight * 4
+                buf = (ctypes.c_char * buf_size)()
+
+                hdc = user32.GetDC(None)
+                gdi32.GetDIBits(hdc, hbitmap, 0, bmp.bmHeight, buf, byref(bih), 0)
+                user32.ReleaseDC(None, hdc)
+                gdi32.DeleteObject(hbitmap)
+                hbitmap.value = None
+
+                img = Image.frombuffer('RGBA', (bmp.bmWidth, bmp.bmHeight), buf, 'raw', 'BGRA', 0, 1)
+                return img
+            finally:
+                if p_thumb:
+                    try:
+                        ctypes.cast(p_thumb, POINTER(IThumbnailProvider)).contents.lpVtbl.contents.Release(p_thumb)
+                    except Exception:
+                        pass
+                if p_item:
+                    try:
+                        p_item.contents.lpVtbl.contents.Release(p_item)
+                    except Exception:
+                        pass
+                if hbitmap:
+                    try:
+                        gdi32.DeleteObject(hbitmap)
+                    except Exception:
+                        pass
+                if needs_uninit:
+                    try:
+                        ole32.CoUninitialize()
+                    except Exception:
+                        pass
+        except Exception as e:
+            logger.warning(f"Windows Shell thumbnail extraction failed: {e}")
+            return None
+
     def _render_video_thumbnail(self, source_path: str, output_path: str, width: int, height: int) -> Optional[str]:
+        """Renders actual extracted video frame thumbnail with play overlay badge."""
+        if sys.platform == "win32":
+            try:
+                frame_img = self._extract_windows_shell_thumbnail(source_path, max(width, height))
+                if frame_img:
+                    frame_img = frame_img.convert("RGB")
+                    frame_img.thumbnail((width, height), Image.Resampling.LANCZOS)
+
+                    # Draw subtle video play indicator badge in center
+                    overlay = Image.new("RGBA", frame_img.size, (0, 0, 0, 0))
+                    draw = ImageDraw.Draw(overlay)
+                    cx, cy = frame_img.width // 2, frame_img.height // 2
+                    r = min(frame_img.width, frame_img.height) // 7
+                    if r >= 12:
+                        draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(15, 23, 42, 180), outline=(255, 255, 255, 220), width=2)
+                        tri_r = r * 0.48
+                        points = [
+                            (cx - tri_r * 0.6, cy - tri_r),
+                            (cx - tri_r * 0.6, cy + tri_r),
+                            (cx + tri_r * 0.9, cy)
+                        ]
+                        draw.polygon(points, fill=(255, 255, 255, 240))
+
+                    frame_rgba = frame_img.convert("RGBA")
+                    final_img = Image.alpha_composite(frame_rgba, overlay).convert("RGB")
+                    final_img.save(output_path, "WEBP", quality=85, method=6)
+                    return output_path
+            except Exception as e:
+                logger.warning(f"Native video thumbnail extraction failed for {source_path}: {e}")
+
+        # Fallback to styled generic video badge
         return self._render_generic_badge(source_path, output_path, width, height, label="VIDEO", bg_color=(99, 102, 241))
 
     def _render_audio_thumbnail(self, source_path: str, output_path: str, width: int, height: int) -> Optional[str]:

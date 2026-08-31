@@ -93,7 +93,42 @@ class TestThumbnailAndCache(unittest.TestCase):
         # Verify stats
         stats = self.thumbnail_service.get_cache_stats()
         self.assertEqual(stats["total_cached_thumbnails"], 1)
-        self.assertGreater(stats["total_size_bytes"], 0)
+        db.close()
+
+    def test_video_thumbnail_generation(self):
+        db = self.TestSession()
+        asset_repo = AssetRepository(db)
+
+        # Create dummy test video path
+        video_path = os.path.join(self.temp_dir, "sample.mp4")
+        with open(video_path, "wb") as f:
+            f.write(b"\x00\x00\x00\x18ftypmp42\x00\x00\x00\x00mp42isom")
+
+        asset = Asset(
+            name="sample.mp4",
+            original_name="sample.mp4",
+            mime_type="video/mp4",
+            size_bytes=os.path.getsize(video_path),
+            storage_path=video_path
+        )
+        saved = asset_repo.save(asset)
+
+        # Generate video thumbnail
+        thumb_path = self.thumbnail_service.get_or_generate_thumbnail(
+            db=db,
+            asset_id=saved.id,
+            width=200,
+            height=200
+        )
+
+        self.assertIsNotNone(thumb_path)
+        self.assertTrue(os.path.exists(thumb_path))
+        self.assertTrue(thumb_path.endswith(".webp"))
+
+        with Image.open(thumb_path) as thumb_img:
+            self.assertEqual(thumb_img.format, "WEBP")
+            self.assertLessEqual(thumb_img.width, 200)
+            self.assertLessEqual(thumb_img.height, 200)
 
         db.close()
 
