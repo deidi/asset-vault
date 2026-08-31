@@ -44,6 +44,7 @@ export const App: React.FC = () => {
   const [isAddFolderOpen, setIsAddFolderOpen] = useState(false);
   const [isCacheManagerOpen, setIsCacheManagerOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [totalCount, setTotalCount] = useState<number>(0);
 
   // Load Library Data
   const loadLibrary = useCallback(async () => {
@@ -64,6 +65,7 @@ export const App: React.FC = () => {
       ]);
       const list = assetsRes.assets || assetsRes.items || [];
       setAssets(list);
+      setTotalCount(assetsRes.total ?? list.length);
       setFolders(foldersRes);
     } catch (err) {
       console.error('Error loading library:', err);
@@ -173,6 +175,7 @@ export const App: React.FC = () => {
       {/* 1. Left Sidebar */}
       <Sidebar
         folders={folders}
+        totalAllAssetsCount={folders.reduce((sum, f) => sum + (f.asset_count || 0), 0)}
         selectedFolderId={selectedFolderId}
         selectedSubfolderPath={selectedSubfolderPath}
         onSelectFolder={(id, sPath) => {
@@ -197,8 +200,8 @@ export const App: React.FC = () => {
           {/* Left Title & Status */}
           <div className="flex items-center space-x-2.5 min-w-0 shrink truncate">
             <h2 className="text-sm md:text-base font-bold text-slate-100 truncate">{activeFolderName}</h2>
-            <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-mono font-medium shrink-0">
-              {assets.length}
+            <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono font-medium shrink-0">
+              {totalCount.toLocaleString()}
             </span>
           </div>
 

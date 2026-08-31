@@ -17,6 +17,7 @@ import { scanFolder, scanAllFolders, deleteFolder, revealInExplorer, fetchFolder
 
 interface SidebarProps {
   folders: LibraryFolder[];
+  totalAllAssetsCount?: number;
   selectedFolderId: string | null;
   selectedSubfolderPath: string | null;
   onSelectFolder: (folderId: string | null, subfolderPath?: string | null) => void;
@@ -62,7 +63,7 @@ const SubfolderTreeNode: React.FC<TreeNodeProps> = ({
             : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
         }`}
       >
-        <div className="flex items-center space-x-1.5 truncate">
+        <div className="flex items-center space-x-1.5 truncate pr-1">
           {hasChildren ? (
             <button
               onClick={(e) => {
@@ -90,8 +91,8 @@ const SubfolderTreeNode: React.FC<TreeNodeProps> = ({
         </div>
 
         {node.asset_count > 0 && (
-          <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-800/80 text-slate-400 group-hover:text-slate-300 shrink-0 ml-1">
-            {node.asset_count}
+          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800/90 text-slate-400 group-hover:text-slate-300 shrink-0 ml-1">
+            {node.asset_count.toLocaleString()}
           </span>
         )}
       </div>
@@ -117,6 +118,7 @@ const SubfolderTreeNode: React.FC<TreeNodeProps> = ({
 
 export const Sidebar: React.FC<SidebarProps> = ({
   folders,
+  totalAllAssetsCount,
   selectedFolderId,
   selectedSubfolderPath,
   onSelectFolder,
@@ -152,11 +154,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const toggleFolderExpansion = (folderId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    const willExpand = !expandedFolders[folderId];
-    setExpandedFolders((prev) => ({ ...prev, [folderId]: willExpand }));
-    if (willExpand) {
-      loadTree(folderId);
-    }
+    setExpandedFolders((prev) => {
+      const next = !prev[folderId];
+      if (next && !folderTrees[folderId]) {
+        loadTree(folderId);
+      }
+      return { ...prev, [folderId]: next };
+    });
   };
 
   useEffect(() => {
@@ -171,12 +175,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     setScanningFolderId(folderId);
     try {
       await scanFolder(folderId);
-      // Reload tree
-      const tree = await fetchFolderTree(folderId);
-      setFolderTrees((prev) => ({ ...prev, [folderId]: tree }));
+      await loadTree(folderId);
       onRefreshLibrary();
-    } catch {
-      // error handled in api
+    } catch (err) {
+      console.error('Scan folder failed:', err);
     } finally {
       setScanningFolderId(null);
     }
@@ -186,16 +188,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     setIsScanningAll(true);
     try {
       await scanAllFolders();
-      // Reload all active trees
-      for (const f of folders) {
-        if (expandedFolders[f.id]) {
-          const tree = await fetchFolderTree(f.id);
-          setFolderTrees((prev) => ({ ...prev, [f.id]: tree }));
-        }
-      }
       onRefreshLibrary();
-    } catch {
-      // error handled in api
+    } catch (err) {
+      console.error('Scan all failed:', err);
     } finally {
       setIsScanningAll(false);
     }
@@ -203,10 +198,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const handleDeleteFolder = async (folderId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (window.confirm('Remove this folder from AssetVault? Files on your disk will NOT be deleted.')) {
+    const folder = folders.find((f) => f.id === folderId);
+    if (!folder) return;
+    if (window.confirm(`Are you sure you want to remove '${folder.name}' from AssetVault? Disk files will NOT be deleted.`)) {
       try {
         await deleteFolder(folderId);
-        if (selectedFolderId === folderId) onSelectFolder(null);
+        if (selectedFolderId === folderId) {
+          onSelectFolder(null, null);
+        }
         onRefreshLibrary();
       } catch {
         // handle error
@@ -217,6 +216,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const filteredTags = availableTags.filter((t) =>
     t.toLowerCase().includes(tagSearch.toLowerCase())
   );
+
+  const totalVaultCount = totalAllAssetsCount ?? folders.reduce((sum, f) => sum + (f.asset_count || 0), 0);
 
   return (
     <aside className="w-64 lg:w-72 bg-[#090e1c] border-r border-slate-800 flex flex-col h-full shrink-0 select-none">
@@ -258,6 +259,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <Layers className="w-4 h-4" />
               <span>All Assets Library</span>
             </div>
+            <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-medium ${
+              selectedFolderId === null && selectedSubfolderPath === null
+                ? 'bg-blue-500/30 text-white border border-blue-400/30'
+                : 'bg-slate-800 text-slate-400'
+            }`}>
+              {totalVaultCount.toLocaleString()}
+            </span>
           </button>
         </div>
 
@@ -293,6 +301,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               const isExpanded = !!expandedFolders[f.id];
               const tree = folderTrees[f.id];
               const hasSubfolders = tree && tree.children && tree.children.length > 0;
+              const count = f.asset_count ?? tree?.asset_count ?? 0;
 
               return (
                 <div key={f.id} className="flex flex-col">
@@ -304,7 +313,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         : 'text-slate-300 hover:bg-slate-800/50 hover:text-slate-100'
                     }`}
                   >
-                    <div className="flex items-center space-x-2 truncate pr-2">
+                    <div className="flex items-center space-x-2 truncate pr-2 flex-1 min-w-0">
                       <button
                         onClick={(e) => toggleFolderExpansion(f.id, e)}
                         className="p-0.5 hover:bg-slate-700/60 rounded text-slate-400 hover:text-slate-200 transition-colors"
@@ -322,10 +331,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       ) : (
                         <Folder className="w-4 h-4 text-slate-400 shrink-0" />
                       )}
-                      <span className="truncate">{f.name}</span>
+                      <span className="truncate flex-1">{f.name}</span>
+                      <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-md font-medium shrink-0 ml-1 ${
+                        isSelected
+                          ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                          : 'bg-slate-800/80 text-slate-400 group-hover:text-slate-300'
+                      }`}>
+                        {count.toLocaleString()}
+                      </span>
                     </div>
 
-                    <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                       <button
                         onClick={(e) => handleScanFolder(f.id, e)}
                         disabled={isScanning}
