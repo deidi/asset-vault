@@ -137,16 +137,22 @@ class ExplorerService:
         if not asset:
             raise ValueError(f"Asset with ID '{asset_id}' not found.")
 
-        target_path = os.path.normpath(asset.storage_path) if asset.storage_path else None
-        if target_path and os.path.exists(target_path):
+        from app.services.asset_service import AssetService
+        asset_service = AssetService(self.db)
+        abs_target_path = asset_service.get_asset_file_path(asset.id)
+
+        if abs_target_path and os.path.exists(abs_target_path):
             try:
-                send2trash.send2trash(target_path)
+                send2trash.send2trash(abs_target_path)
             except Exception as e:
-                logger.warning(f"send2trash failed for {target_path}, attempting os.remove: {e}")
-                os.remove(target_path)
+                logger.warning(f"send2trash failed for {abs_target_path}, attempting os.remove: {e}")
+                try:
+                    os.remove(abs_target_path)
+                except Exception as ex:
+                    logger.error(f"Failed to remove file {abs_target_path}: {ex}")
 
         self.asset_repo.delete(asset_id)
-        return {"status": "success", "deleted_asset_id": asset_id, "trashed_path": target_path}
+        return {"status": "success", "deleted_asset_id": asset_id, "trashed_path": abs_target_path}
 
     def batch_trash(self, asset_ids: List[str]) -> Dict[str, Any]:
         """Trashes multiple assets to Windows Recycle Bin."""

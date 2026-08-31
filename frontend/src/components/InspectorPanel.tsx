@@ -104,18 +104,20 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
     }
   };
 
+  const [isConfirmingTrash, setIsConfirmingTrash] = useState(false);
+
   const handleTrash = async () => {
-    if (window.confirm(`Are you sure you want to send "${asset.name}" to the Windows Recycle Bin?`)) {
-      setLoading(true);
-      try {
-        await trashToRecycleBin([asset.id]);
-        onAssetDeleted(asset.id);
-        onClose();
-      } catch (err: any) {
-        setError(err.message || 'Failed to trash file');
-      } finally {
-        setLoading(false);
-      }
+    setLoading(true);
+    setError(null);
+    try {
+      await trashToRecycleBin([asset.id]);
+      onAssetDeleted(asset.id);
+      onClose();
+    } catch (err: any) {
+      setError(err.message || 'Failed to send file to Recycle Bin');
+      setIsConfirmingTrash(false);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -205,24 +207,49 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
           )}
 
           {/* Action Buttons Grid */}
-          <div className="grid grid-cols-2 gap-2 pt-1">
-            <button
-              onClick={() => revealInExplorer(asset.id)}
-              className="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 transition-colors shadow-xs"
-            >
-              <FolderOpen className="w-3.5 h-3.5 text-blue-400" />
-              <span>Show in Explorer</span>
-            </button>
+          {isConfirmingTrash ? (
+            <div className="p-3 bg-rose-950/40 border border-rose-500/40 rounded-xl space-y-2">
+              <p className="text-xs text-rose-300 font-medium">
+                Move "{asset.name}" to Windows Recycle Bin?
+              </p>
+              <div className="flex space-x-2">
+                <button
+                  onClick={handleTrash}
+                  disabled={loading}
+                  className="flex-1 px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-semibold flex items-center justify-center space-x-1.5 transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>{loading ? 'Moving...' : 'Yes, Delete'}</span>
+                </button>
+                <button
+                  onClick={() => setIsConfirmingTrash(false)}
+                  disabled={loading}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                onClick={() => revealInExplorer(asset.id)}
+                className="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 transition-colors shadow-xs"
+              >
+                <FolderOpen className="w-3.5 h-3.5 text-blue-400" />
+                <span>Show in Explorer</span>
+              </button>
 
-            <button
-              onClick={handleTrash}
-              disabled={loading}
-              className="px-3 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 transition-colors"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              <span>Recycle Bin</span>
-            </button>
-          </div>
+              <button
+                onClick={() => setIsConfirmingTrash(true)}
+                disabled={loading}
+                className="px-3 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Recycle Bin</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Detailed Metadata Grid */}

@@ -42,19 +42,22 @@ def rename_asset_on_disk(payload: RenameRequest, db: Session = Depends(get_db)) 
 @router.post("/trash", status_code=status.HTTP_200_OK)
 def trash_asset_to_recycle_bin(payload: TrashRequest, db: Session = Depends(get_db)) -> Dict[str, Any]:
     service = ExplorerService(db)
-    if not payload.asset_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="asset_id is required for trashing.")
-    try:
-        return service.trash_to_recycle_bin(asset_id=payload.asset_id)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    if payload.asset_ids and len(payload.asset_ids) > 0:
+        return service.batch_trash(asset_ids=payload.asset_ids)
+    if payload.asset_id:
+        try:
+            return service.trash_to_recycle_bin(asset_id=payload.asset_id)
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="asset_id or asset_ids is required for trashing.")
 
 @router.post("/batch-trash", status_code=status.HTTP_200_OK)
 def batch_trash_assets(payload: BatchTrashRequest, db: Session = Depends(get_db)) -> Dict[str, Any]:
-    if not payload.asset_ids:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="asset_ids list cannot be empty.")
     service = ExplorerService(db)
-    return service.batch_trash(asset_ids=payload.asset_ids)
+    asset_ids = payload.asset_ids or []
+    if not asset_ids:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="asset_ids list cannot be empty.")
+    return service.batch_trash(asset_ids=asset_ids)
 
 @router.post("/batch-move", status_code=status.HTTP_200_OK)
 def batch_move_assets(payload: BatchMoveRequest, db: Session = Depends(get_db)) -> Dict[str, Any]:

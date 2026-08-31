@@ -102,7 +102,9 @@ class RenameRequest(BaseModel):
 
 class TrashRequest(BaseModel):
     asset_id: Optional[str] = None
+    asset_ids: Optional[List[str]] = None
     path: Optional[str] = None
+    paths: Optional[List[str]] = None
 
 class BatchTrashRequest(BaseModel):
     asset_ids: Optional[List[str]] = None
