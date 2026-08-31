@@ -26,7 +26,17 @@ export async function fetchAssets(params: {
 
   const res = await fetch(`${API_BASE}/assets?${query.toString()}`);
   if (!res.ok) throw new Error(`Failed to fetch assets: ${res.statusText}`);
-  return res.json();
+  const data: InventoryResponse = await res.json();
+  const rawList = data.assets || data.items || [];
+  const normalized = rawList.map((a) => ({
+    ...a,
+    tags: Array.isArray(a.tags) ? a.tags : []
+  }));
+  return {
+    ...data,
+    assets: normalized,
+    items: normalized
+  };
 }
 
 export async function fetchFolders(): Promise<LibraryFolder[]> {

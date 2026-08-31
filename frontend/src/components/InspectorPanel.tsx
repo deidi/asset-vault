@@ -72,7 +72,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
   const handleAddTag = async () => {
     const trimmed = newTagInput.trim().replace(/^#/, '');
     if (!trimmed) return;
-    const existingNames = asset.tags.map((t) => t.name.replace(/^#/, ''));
+    const existingNames = (asset.tags || []).map((t) => t.name.replace(/^#/, ''));
     if (existingNames.includes(trimmed)) {
       setNewTagInput('');
       return;
@@ -91,7 +91,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
   };
 
   const handleRemoveTag = async (tagToRemove: string) => {
-    const existingNames = asset.tags.map((t) => t.name);
+    const existingNames = (asset.tags || []).map((t) => t.name);
     const filtered = existingNames.filter((t) => t !== tagToRemove);
     setLoading(true);
     try {
@@ -288,7 +288,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
         <div className="space-y-3 border-t border-slate-800/80 pt-4">
           <div className="flex items-center justify-between">
             <h5 className="text-slate-400 font-semibold uppercase tracking-wider text-[11px]">Tags</h5>
-            <span className="text-[10px] text-slate-500">{asset.tags.length} assigned</span>
+            <span className="text-[10px] text-slate-500">{(asset.tags || []).length} assigned</span>
           </div>
 
           {/* Add Tag Input */}
@@ -317,7 +317,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
 
           {/* Tags Chips */}
           <div className="flex flex-wrap gap-1.5 pt-1">
-            {asset.tags.map((t) => {
+            {(asset.tags || []).map((t) => {
               const protectedTag = isProtectedTag(t.name);
               return (
                 <span

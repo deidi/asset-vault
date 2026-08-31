@@ -91,7 +91,7 @@ export const App: React.FC = () => {
   // Extract all available tags across library
   const availableTags = useMemo(() => {
     const set = new Set<string>();
-    assets.forEach((a) => a.tags.forEach((t) => set.add(t.name.replace(/^#/, ''))));
+    assets.forEach((a) => (a.tags || []).forEach((t) => set.add(t.name.replace(/^#/, ''))));
     return Array.from(set).sort();
   }, [assets]);
 

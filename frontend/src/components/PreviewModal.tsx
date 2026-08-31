@@ -297,7 +297,7 @@ export const PreviewModal: React.FC<PreviewModalProps> = ({
               <div>
                 <span className="text-slate-500 block font-medium">Tags</span>
                 <div className="flex flex-wrap gap-1 mt-1">
-                  {asset.tags.map((t) => (
+                  {(asset.tags || []).map((t) => (
                     <span
                       key={t.id}
                       className="px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-400 border border-blue-500/20 font-mono text-[10px]"

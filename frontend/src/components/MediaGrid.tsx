@@ -137,7 +137,7 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
 
               <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono">
                 <span>{(asset.size_bytes / (1024 * 1024)).toFixed(1)} MB</span>
-                <span>{asset.tags.length > 0 ? `#${asset.tags[0].name.replace(/^#/, '')}` : ''}</span>
+                <span>{(asset.tags || []).length > 0 ? `#${asset.tags[0].name.replace(/^#/, '')}` : ''}</span>
               </div>
             </div>
           </div>

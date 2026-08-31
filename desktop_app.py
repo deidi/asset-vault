@@ -138,7 +138,7 @@ def main():
     window.events.closed += on_window_closed
 
     # 5. Start GUI event loop (blocks until window is closed)
-    webview.start(debug=True, private_mode=False, storage_path=wv2_data_dir)
+    webview.start(debug=False, private_mode=False, storage_path=wv2_data_dir)
 
 if __name__ == "__main__":
     main()
