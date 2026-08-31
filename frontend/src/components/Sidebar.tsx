@@ -255,7 +255,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Navigation & Folders */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-6">
+      <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar">
         {/* All Media View */}
         <div>
           <button
@@ -447,7 +447,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
 
           {/* Tag List */}
-          <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto pr-1">
+          <div className="flex flex-wrap gap-1.5 max-h-52 overflow-y-auto pr-1.5 pb-1 custom-scrollbar">
             {filteredTags.map((tag) => {
               const isSelected = selectedTags.includes(tag);
               return (
