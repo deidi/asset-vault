@@ -5,10 +5,31 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AssetVault</title>
-    <script type="module" crossorigin src="/assets/index-B0SKWHgI.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-D-i3f2nG.css">
+    <script type="module" crossorigin src="/assets/index-BITDmpjZ.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-Tv-me1q4.css">
   </head>
-  <body>
-    <div id="root"></div>
+  <body class="bg-[#090e1c] text-slate-100 antialiased overflow-hidden select-none m-0 p-0">
+    <div id="root">
+      <div style="display:flex;height:100vh;width:100vw;align-items:center;justify-content:center;background:#090e1c;color:#94a3b8;font-family:system-ui,-apple-system,sans-serif;flex-direction:column;gap:16px;">
+        <div style="width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#2563eb,#6366f1);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:20px;box-shadow:0 10px 25px rgba(37,99,235,0.3);">
+          AV
+        </div>
+        <div style="font-size:14px;font-weight:600;color:#cbd5e1;letter-spacing:-0.01em;">Loading AssetVault...</div>
+        <div style="width:120px;height:3px;background:#1e293b;border-radius:999px;overflow:hidden;position:relative;">
+          <div style="position:absolute;top:0;left:0;bottom:0;width:40%;background:#3b82f6;border-radius:999px;animation:pulseBar 1.2s infinite ease-in-out;"></div>
+        </div>
+        <style>
+          @keyframes pulseBar {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(300%); }
+          }
+        </style>
+      </div>
+    </div>
+    <script>
+      window.addEventListener('error', function(e) {
+        console.error('Global Application Error:', e.error || e.message);
+      });
+    </script>
   </body>
 </html>

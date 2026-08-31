@@ -271,7 +271,7 @@ class FolderService:
                 ))
         return results
 
-    def get_folder_tree(self, folder_id: str) -> FolderTreeNode:
+    def get_folder_tree(self, folder_id: str, max_depth: int = 4) -> FolderTreeNode:
         """Constructs a nested subfolder tree hierarchy with asset counts for a library folder."""
         folder = self.folder_repo.find_by_id(folder_id)
         if not folder:
@@ -281,31 +281,44 @@ class FolderService:
 
         # Fetch all asset storage paths for this folder to compute asset counts per directory
         assets = self.db.query(Asset.storage_path).filter(Asset.folder_id == folder.id).all()
-        asset_paths = [os.path.normpath(a[0]) for a in assets if a[0]]
+        
+        # Build fast O(1) directory count dictionary
+        from collections import defaultdict
+        dir_counts: Dict[str, int] = defaultdict(int)
+        norm_root = os.path.normpath(folder.path).lower()
 
-        def build_tree_node(dir_path: str, rel_path: str = "") -> FolderTreeNode:
+        for a in assets:
+            if not a[0]:
+                continue
+            cur = os.path.normpath(os.path.dirname(a[0]))
+            while cur:
+                dir_counts[cur.lower()] += 1
+                parent = os.path.dirname(cur)
+                if not parent or parent == cur or cur.lower() == norm_root:
+                    break
+                cur = parent
+
+        def build_tree_node(dir_path: str, rel_path: str = "", current_depth: int = 0) -> FolderTreeNode:
             norm_dir = os.path.normpath(dir_path)
             name = folder.name if not rel_path else (os.path.basename(norm_dir) or folder.name)
-            
-            # Count assets under this directory
-            prefix = norm_dir if norm_dir.endswith(os.sep) else norm_dir + os.sep
-            dir_asset_count = sum(1 for ap in asset_paths if ap == norm_dir or ap.startswith(prefix))
+            dir_asset_count = dir_counts.get(norm_dir.lower(), 0)
 
             children: List[FolderTreeNode] = []
-            try:
-                subdirs = []
-                with os.scandir(norm_dir) as entries:
-                    for entry in entries:
-                        if entry.is_dir():
-                            if not entry.name.startswith((".", "$")) and entry.name.lower() not in {"system volume information", "node_modules", ".git", "$recycle.bin"}:
-                                subdirs.append(entry.name)
-                subdirs.sort(key=lambda s: s.lower())
-                for sub in subdirs:
-                    sub_abs = os.path.join(norm_dir, sub)
-                    sub_rel = os.path.join(rel_path, sub) if rel_path else sub
-                    children.append(build_tree_node(sub_abs, sub_rel))
-            except Exception as e:
-                logger.warning(f"Failed scanning subdirectories for {norm_dir}: {e}")
+            if current_depth < max_depth:
+                try:
+                    subdirs = []
+                    with os.scandir(norm_dir) as entries:
+                        for entry in entries:
+                            if entry.is_dir():
+                                if not entry.name.startswith((".", "$")) and entry.name.lower() not in {"system volume information", "node_modules", ".git", "$recycle.bin"}:
+                                    subdirs.append(entry.name)
+                    subdirs.sort(key=lambda s: s.lower())
+                    for sub in subdirs:
+                        sub_abs = os.path.join(norm_dir, sub)
+                        sub_rel = os.path.join(rel_path, sub) if rel_path else sub
+                        children.append(build_tree_node(sub_abs, sub_rel, current_depth + 1))
+                except Exception as e:
+                    logger.warning(f"Failed scanning subdirectories for {norm_dir}: {e}")
 
             return FolderTreeNode(
                 name=name,
@@ -315,7 +328,7 @@ class FolderService:
                 children=children
             )
 
-        return build_tree_node(folder.path, "")
+        return build_tree_node(folder.path, "", 0)
 
     def open_folder_picker_dialog(self) -> Optional[str]:
         """Opens a native OS folder selection dialog."""
