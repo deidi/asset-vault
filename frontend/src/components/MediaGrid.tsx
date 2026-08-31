@@ -50,6 +50,14 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
     return <File className="w-3.5 h-3.5 text-slate-400" />;
   };
 
+  const renderPlaceholderIcon = (mime: string) => {
+    if (mime.startsWith('image/')) return <ImageIcon className="w-10 h-10 text-slate-800" />;
+    if (mime.startsWith('video/')) return <Film className="w-10 h-10 text-slate-800" />;
+    if (mime.startsWith('audio/')) return <Music className="w-10 h-10 text-slate-800" />;
+    if (mime.includes('pdf')) return <FileText className="w-10 h-10 text-slate-800" />;
+    return <File className="w-10 h-10 text-slate-800" />;
+  };
+
   return (
     <div className={`grid ${getGridColsClass()} p-6`}>
       {assets.map((asset) => {
@@ -76,11 +84,14 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
           >
             {/* Thumbnail Canvas */}
             <div className="relative aspect-square w-full bg-slate-950/80 overflow-hidden flex items-center justify-center">
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                {renderPlaceholderIcon(asset.mime_type)}
+              </div>
               <img
                 src={thumbnailUrl}
                 alt={asset.name}
                 loading="lazy"
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                className="relative z-1 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                 onError={(e) => {
                   (e.target as HTMLElement).style.display = 'none';
                 }}

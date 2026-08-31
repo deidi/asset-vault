@@ -38,8 +38,8 @@ class ThumbnailService:
         return target_dir
 
     def compute_cache_key(self, file_path: str, mtime: float, width: int = 350, height: int = 350) -> str:
-        """Generates a unique SHA-256 hash based on normalized path, timestamp, and dimensions."""
-        key_content = f"{os.path.normpath(file_path)}_{mtime}_{width}x{height}"
+        """Generates a unique SHA-256 hash based on normalized path, timestamp, dimensions, and generator version."""
+        key_content = f"v2_{os.path.normpath(file_path)}_{mtime}_{width}x{height}"
         return hashlib.sha256(key_content.encode("utf-8")).hexdigest()
 
     def get_or_generate_thumbnail(self, db: Session, asset_id: str, width: int = 350, height: int = 350) -> Optional[str]:
