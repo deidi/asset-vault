@@ -34,6 +34,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
   const [newTagInput, setNewTagInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isConfirmingTrash, setIsConfirmingTrash] = useState(false);
 
   if (!isOpen || !asset) return null;
 
@@ -103,8 +104,6 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
       setLoading(false);
     }
   };
-
-  const [isConfirmingTrash, setIsConfirmingTrash] = useState(false);
 
   const handleTrash = async () => {
     setLoading(true);
