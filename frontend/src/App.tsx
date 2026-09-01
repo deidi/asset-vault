@@ -55,20 +55,22 @@ export const App: React.FC = () => {
   const loadLibrary = useCallback(async () => {
     setLoading(true);
     try {
-      const [assetsRes, foldersRes] = await Promise.all([
-        fetchAssets({
-          page: 1,
-          pageSize: 50000,
-          search: searchQuery || undefined,
-          folderId: selectedFolderId || undefined,
-          subfolderPath: selectedSubfolderPath || undefined,
-          tags: selectedTags.length > 0 ? selectedTags : undefined,
-          fileType: selectedFileType !== 'all' ? selectedFileType : undefined,
-          sortBy,
-          sortOrder,
-        }),
-        fetchFolders(),
-      ]);
+      const foldersRes = await fetchFolders();
+      const allAssetsCount = foldersRes.reduce((sum, f) => sum + (f.asset_count || 0), 0);
+      const dynamicPageSize = Math.max(1000, allAssetsCount);
+
+      const assetsRes = await fetchAssets({
+        page: 1,
+        pageSize: dynamicPageSize,
+        search: searchQuery || undefined,
+        folderId: selectedFolderId || undefined,
+        subfolderPath: selectedSubfolderPath || undefined,
+        tags: selectedTags.length > 0 ? selectedTags : undefined,
+        fileType: selectedFileType !== 'all' ? selectedFileType : undefined,
+        sortBy,
+        sortOrder,
+      });
+
       const list = assetsRes.assets || assetsRes.items || [];
       setAssets(list);
       setTotalCount(assetsRes.total ?? list.length);

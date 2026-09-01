@@ -620,16 +620,19 @@ class AssetService:
         else:
             query = query.order_by(desc(col))
             
-        offset = (page - 1) * page_size
-        items = query.offset(offset).limit(page_size).all()
-        
-        total_pages = max(1, math.ceil(total / page_size))
-        
+        if page_size and page_size > 0:
+            offset = (page - 1) * page_size
+            items = query.offset(offset).limit(page_size).all()
+            total_pages = max(1, math.ceil(total / page_size))
+        else:
+            items = query.all()
+            total_pages = 1
+            
         return {
             "items": items,
             "total": total,
             "page": page,
-            "pageSize": page_size,
+            "pageSize": page_size or total,
             "totalPages": total_pages
         }
 
