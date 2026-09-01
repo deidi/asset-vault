@@ -54,15 +54,21 @@ class LibraryEventHandler(FileSystemEventHandler):
     def on_created(self, event: FileSystemEvent) -> None:
         if event.is_directory:
             return
+        if watcher_service.is_suppressed(event.src_path):
+            return
         self._handle_file_created_or_modified(event.src_path, is_new=True)
 
     def on_modified(self, event: FileSystemEvent) -> None:
         if event.is_directory:
             return
+        if watcher_service.is_suppressed(event.src_path):
+            return
         self._handle_file_created_or_modified(event.src_path, is_new=False)
 
     def on_moved(self, event: FileMovedEvent) -> None:
         if event.is_directory:
+            return
+        if watcher_service.is_suppressed(event.src_path) or watcher_service.is_suppressed(event.dest_path):
             return
         src_path = os.path.normpath(event.src_path)
         dest_path = os.path.normpath(event.dest_path)
@@ -133,6 +139,8 @@ class LibraryEventHandler(FileSystemEventHandler):
 
     def on_deleted(self, event: FileSystemEvent) -> None:
         if event.is_directory:
+            return
+        if watcher_service.is_suppressed(event.src_path):
             return
         path = os.path.normpath(event.src_path)
         logger.info(f"File deletion detected: {path}")
@@ -248,6 +256,13 @@ class LibraryEventHandler(FileSystemEventHandler):
             new_asset.tags = resolved_tags
             saved = asset_repo.save(new_asset)
 
+            # Pre-generate thumbnail in cache
+            try:
+                from app.services.thumbnail_service import thumbnail_service
+                thumbnail_service.get_or_generate_thumbnail(db, saved.id, 350, 350)
+            except Exception as thumb_err:
+                logger.debug(f"Could not pre-generate thumbnail for {saved.id}: {thumb_err}")
+
             manager.broadcast_sync("file_added", {
                 "asset_id": saved.id,
                 "name": saved.name,
@@ -272,7 +287,29 @@ class WatcherService:
     def __init__(self):
         self._observer: Optional[Observer] = None
         self._watches: Dict[str, Any] = {}  # folder_id -> ObservedWatch
+        self._suppressed_paths: Dict[str, float] = {}  # normalized_case_path -> expire_timestamp
         self._lock = threading.Lock()
+
+    def suppress_paths(self, paths: List[str], duration_sec: float = 5.0) -> None:
+        """Temporarily suppresses watcher events for specific paths during internal operations."""
+        expire_time = time.time() + duration_sec
+        with self._lock:
+            for p in paths:
+                if p:
+                    self._suppressed_paths[os.path.normcase(os.path.normpath(p))] = expire_time
+
+    def is_suppressed(self, path: str) -> bool:
+        """Checks if a path is currently suppressed from watcher event processing."""
+        if not path:
+            return False
+        norm_case = os.path.normcase(os.path.normpath(path))
+        with self._lock:
+            if norm_case in self._suppressed_paths:
+                if time.time() < self._suppressed_paths[norm_case]:
+                    return True
+                else:
+                    del self._suppressed_paths[norm_case]
+            return False
 
     def start_all(self) -> None:
         """Starts the observer engine and hooks all active library folders."""

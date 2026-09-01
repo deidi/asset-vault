@@ -139,6 +139,8 @@ def get_assets_paginated(
     path_prefix: Optional[str] = Query(None),
     pathPrefix: Optional[str] = Query(None),
     tags: Optional[List[str]] = Query(None),
+    file_type: Optional[str] = Query(None),
+    fileType: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
     asset_service = AssetService(db)
@@ -149,6 +151,7 @@ def get_assets_paginated(
     final_sort_dir = sort_dir or sortDir or sort_order or sortOrder or "desc"
     final_folder_id = folder_id or folderId
     final_subfolder_path = subfolder_path or subfolderPath or path_prefix or pathPrefix
+    final_file_type = file_type or fileType
 
     db_sort_by = final_sort_by
     if final_sort_by == "size":
@@ -162,7 +165,8 @@ def get_assets_paginated(
         search=search,
         tags=tags,
         folder_id=final_folder_id,
-        subfolder_path=final_subfolder_path
+        subfolder_path=final_subfolder_path,
+        file_type=final_file_type
     )
 
 @router.get("/asset/{id}", response_model=AssetResponse)

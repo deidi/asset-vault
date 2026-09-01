@@ -46,11 +46,12 @@ class ThumbnailService:
         """Retrieves an existing cached thumbnail or generates a new one on-demand."""
         asset_repo = AssetRepository(db)
         asset = asset_repo.find_by_id(asset_id)
-        if not asset or not asset.storage_path:
+        if not asset:
             return None
 
-        file_path = os.path.normpath(asset.storage_path)
-        if not os.path.exists(file_path):
+        from app.services.asset_service import AssetService
+        file_path = AssetService(db).get_asset_file_path(asset.id)
+        if not file_path or not os.path.exists(file_path):
             return None
 
         try:
@@ -63,6 +64,9 @@ class ThumbnailService:
         cached_file_path = os.path.join(cache_dir, f"{cache_key}.webp")
 
         if os.path.exists(cached_file_path) and os.path.getsize(cached_file_path) > 0:
+            if not asset.thumbnail_path or asset.thumbnail_path != cached_file_path:
+                asset.thumbnail_path = cached_file_path
+                asset_repo.save(asset)
             return cached_file_path
 
         # Generate fresh thumbnail

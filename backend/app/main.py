@@ -16,7 +16,7 @@ from app.routes.ws_routes import router as ws_router
 from app.routes.thumbnail_routes import router as thumbnail_router
 from app.services.watcher_service import watcher_service
 from app.services.connection_manager import manager
-from app.db.session import engine, Base, init_db
+from app.db.session import engine, Base, init_db, SessionLocal
 
 # Setup logging configuration
 logging.basicConfig(
@@ -36,6 +36,30 @@ async def lifespan(app: FastAPI):
         loop = asyncio.get_running_loop()
         manager.set_loop(loop)
         watcher_service.start_all()
+
+        # Background synchronization of all active folders on startup
+        async def startup_sync_task():
+            try:
+                def do_sync():
+                    db = SessionLocal()
+                    try:
+                        from app.services.folder_service import FolderService
+                        f_service = FolderService(db)
+                        scan_results = f_service.scan_all_active_folders()
+                        new_count = sum(r.newly_indexed for r in scan_results)
+                        if new_count > 0:
+                            logger.info(f"Startup folder scan complete: {new_count} new file(s) indexed with thumbnails.")
+                            manager.broadcast_sync("library_updated", {"newly_indexed": new_count})
+                    except Exception as e:
+                        logger.warning(f"Startup folder scan encountered an issue: {e}")
+                    finally:
+                        db.close()
+
+                await asyncio.to_thread(do_sync)
+            except Exception as ex:
+                logger.warning(f"Error in startup sync background task: {ex}")
+
+        asyncio.create_task(startup_sync_task())
     except Exception as e:
         logger.error(f"Error starting file system watchers on startup: {e}")
     yield

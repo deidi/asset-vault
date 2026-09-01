@@ -165,5 +165,32 @@ class TestFolderAndExplorerService(unittest.TestCase):
         self.assertEqual(subfolder_inventory["total"], 1)
         self.assertEqual(subfolder_inventory["items"][0].name, "clip.mp4")
 
+    def test_batch_move_assets(self):
+        folder_service = FolderService(self.db)
+        explorer_service = ExplorerService(self.db)
+        asset_repo = AssetRepository(self.db)
+
+        folder_res = folder_service.add_folder(LibraryFolderCreate(
+            path=self.temp_dir,
+            name="MoveSource",
+            is_recursive=False
+        ))
+        folder_service.scan_folder(folder_res.id)
+
+        assets = asset_repo.find_all()
+        banner_asset = next(a for a in assets if a.name == "banner.png")
+
+        # Destination newly created folder
+        target_dest = os.path.join(self.temp_dir, "moved_assets_folder")
+
+        res = explorer_service.batch_move([banner_asset.id], target_dest)
+        self.assertEqual(res["status"], "success")
+        self.assertEqual(res["moved_count"], 1)
+
+        updated_asset = asset_repo.find_by_id(banner_asset.id)
+        expected_new_path = os.path.normpath(os.path.join(target_dest, "banner.png"))
+        self.assertEqual(os.path.normpath(updated_asset.storage_path), expected_new_path)
+        self.assertTrue(os.path.exists(expected_new_path))
+
 if __name__ == "__main__":
     unittest.main()

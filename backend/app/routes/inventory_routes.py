@@ -27,16 +27,20 @@ def get_inventory(
     sortBy: str = Query("created_at"),
     sortDir: str = Query("desc"),
     search: str = Query(""),
+    file_type: Optional[str] = Query(None),
+    fileType: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
     asset_service = AssetService(db)
     db_sort_by = sortBy
     if sortBy == "size":
          db_sort_by = "size_bytes"
+    final_file_type = file_type or fileType
     return asset_service.get_inventory(
         page=page,
         page_size=pageSize,
         sort_by=db_sort_by,
         sort_dir=sortDir,
-        search=search
+        search=search,
+        file_type=final_file_type
     )

@@ -11,7 +11,11 @@ import {
   ArrowUpDown,
   CheckSquare,
   Square,
-  X
+  X,
+  Image as ImageIcon,
+  Film,
+  Music,
+  FileText
 } from 'lucide-react';
 import type { Asset, LibraryFolder, WebSocketEvent } from './types';
 import { fetchAssets, fetchFolders } from './api';
@@ -30,6 +34,7 @@ export const App: React.FC = () => {
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [selectedSubfolderPath, setSelectedSubfolderPath] = useState<string | null>(null);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedFileType, setSelectedFileType] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<string>('created_at');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
@@ -58,6 +63,7 @@ export const App: React.FC = () => {
           folderId: selectedFolderId || undefined,
           subfolderPath: selectedSubfolderPath || undefined,
           tags: selectedTags.length > 0 ? selectedTags : undefined,
+          fileType: selectedFileType !== 'all' ? selectedFileType : undefined,
           sortBy,
           sortOrder,
         }),
@@ -72,7 +78,7 @@ export const App: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [searchQuery, selectedFolderId, selectedSubfolderPath, selectedTags, sortBy, sortOrder]);
+  }, [searchQuery, selectedFolderId, selectedSubfolderPath, selectedTags, selectedFileType, sortBy, sortOrder]);
 
   // Initial Load & Debounced Filter Trigger
   useEffect(() => {
@@ -87,6 +93,39 @@ export const App: React.FC = () => {
     // When files are added, modified, renamed or deleted, silently reload
     loadLibrary();
   }, [loadLibrary]);
+
+  // Global Keyboard Shortcuts (Ctrl+A to Select All, Escape to clear selection)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't intercept when focusing on text input or textarea
+      const target = e.target as HTMLElement;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
+      // Do not trigger global selection if a modal is open
+      if (previewModalAsset || isAddFolderOpen || isCacheManagerOpen) {
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        if (assets.length > 0) {
+          setSelectedAssetIds(assets.map((a) => a.id));
+        }
+      } else if (e.key === 'Escape') {
+        setSelectedAssetIds([]);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [assets, previewModalAsset, isAddFolderOpen, isCacheManagerOpen]);
 
   const { isConnected } = useWebSocket(handleWsEvent);
 
@@ -158,6 +197,14 @@ export const App: React.FC = () => {
       setActiveAssetId(null);
     }
   };
+
+  const fileTypeOptions = useMemo(() => [
+    { value: 'all', label: 'All Files', icon: Layers, activeColor: 'text-blue-400' },
+    { value: 'image', label: 'Images', icon: ImageIcon, activeColor: 'text-blue-400' },
+    { value: 'video', label: 'Videos', icon: Film, activeColor: 'text-indigo-400' },
+    { value: 'audio', label: 'Audio', icon: Music, activeColor: 'text-emerald-400' },
+    { value: 'document', label: 'Documents', icon: FileText, activeColor: 'text-rose-400' },
+  ], []);
 
   const activeFolderName = useMemo(() => {
     if (selectedSubfolderPath) {
@@ -314,6 +361,41 @@ export const App: React.FC = () => {
           </div>
         </header>
 
+        {/* Sub-Header Filter Bar: File Types */}
+        <div className="h-11 border-b border-slate-800/70 px-4 md:px-6 flex items-center justify-between gap-2 bg-slate-900/30 backdrop-blur-xs shrink-0 overflow-x-auto no-scrollbar">
+          <div className="flex items-center space-x-1 sm:space-x-1.5">
+            {fileTypeOptions.map((opt) => {
+              const isSelected = selectedFileType === opt.value;
+              const Icon = opt.icon;
+              return (
+                <button
+                  key={opt.value}
+                  onClick={() => setSelectedFileType(opt.value)}
+                  className={`flex items-center space-x-1.5 px-3 py-1 rounded-xl text-xs font-medium transition-all duration-150 whitespace-nowrap cursor-pointer ${
+                    isSelected
+                      ? 'bg-blue-600/25 text-blue-300 border border-blue-500/40 shadow-xs shadow-blue-500/10'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent'
+                  }`}
+                >
+                  <Icon className={`w-3.5 h-3.5 ${isSelected ? opt.activeColor : 'text-slate-500'}`} />
+                  <span>{opt.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {selectedFileType !== 'all' && (
+            <button
+              onClick={() => setSelectedFileType('all')}
+              className="text-[11px] text-slate-400 hover:text-slate-200 flex items-center space-x-1 px-2 py-0.5 rounded-lg hover:bg-slate-800/60 transition-colors cursor-pointer shrink-0"
+              title="Reset file type filter"
+            >
+              <span>Reset filter</span>
+              <X className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+
         {/* Media Grid Canvas */}
         <div className="flex-1 overflow-y-auto">
           {assets.length > 0 ? (
@@ -331,20 +413,34 @@ export const App: React.FC = () => {
                 <Layers className="w-8 h-8" />
               </div>
               <div className="max-w-md">
-                <h3 className="text-base font-bold text-slate-200">No assets found</h3>
+                <h3 className="text-base font-bold text-slate-200">
+                  {selectedFileType !== 'all' ? `No ${selectedFileType} assets found` : 'No assets found'}
+                </h3>
                 <p className="text-xs text-slate-400 mt-1">
-                  {selectedFolderId
+                  {selectedFileType !== 'all'
+                    ? `There are no assets matching the '${selectedFileType}' filter in this view.`
+                    : selectedFolderId
                     ? 'This folder does not contain any supported media files yet.'
                     : 'Add a library folder from the sidebar or drop media files to begin.'}
                 </p>
               </div>
-              <button
-                onClick={() => setIsAddFolderOpen(true)}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-blue-500/25 flex items-center space-x-2 transition-all"
-              >
-                <FolderPlus className="w-4 h-4" />
-                <span>Add Library Folder</span>
-              </button>
+              {selectedFileType !== 'all' ? (
+                <button
+                  onClick={() => setSelectedFileType('all')}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold border border-slate-700 flex items-center space-x-2 transition-all cursor-pointer"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Show All File Types</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => setIsAddFolderOpen(true)}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-blue-500/25 flex items-center space-x-2 transition-all cursor-pointer"
+                >
+                  <FolderPlus className="w-4 h-4" />
+                  <span>Add Library Folder</span>
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -363,6 +459,7 @@ export const App: React.FC = () => {
       {/* 4. Floating Bulk Actions Toolbar */}
       <BulkActionsBar
         selectedAssetIds={selectedAssetIds}
+        assets={assets}
         onClearSelection={() => setSelectedAssetIds([])}
         onRefreshLibrary={loadLibrary}
       />

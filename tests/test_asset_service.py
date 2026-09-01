@@ -132,6 +132,45 @@ class TestAssetService(unittest.TestCase):
         self.assertEqual(res_tags["total"], 1)
         self.assertEqual(res_tags["items"][0].id, a2.id)
 
+    def test_inventory_file_type_filtering(self):
+        """Verify inventory file_type filtering for image, video, audio, and documents."""
+        a_img = self.service.upload_asset(AssetCreate(
+            name="photo.png", originalName="photo.png", mimeType="image/png", sizeBytes=100, storagePath="storage/photo.png", tags=[]
+        ))
+        a_vid = self.service.upload_asset(AssetCreate(
+            name="clip.mp4", originalName="clip.mp4", mimeType="video/mp4", sizeBytes=500, storagePath="storage/clip.mp4", tags=[]
+        ))
+        a_aud = self.service.upload_asset(AssetCreate(
+            name="song.mp3", originalName="song.mp3", mimeType="audio/mp3", sizeBytes=300, storagePath="storage/song.mp3", tags=[]
+        ))
+        a_doc = self.service.upload_asset(AssetCreate(
+            name="report.pdf", originalName="report.pdf", mimeType="application/pdf", sizeBytes=200, storagePath="storage/report.pdf", tags=[]
+        ))
+
+        # Filter by image
+        img_res = self.service.get_inventory(file_type="image")
+        self.assertEqual(img_res["total"], 1)
+        self.assertEqual(img_res["items"][0].id, a_img.id)
+
+        # Filter by video
+        vid_res = self.service.get_inventory(file_type="video")
+        self.assertEqual(vid_res["total"], 1)
+        self.assertEqual(vid_res["items"][0].id, a_vid.id)
+
+        # Filter by audio
+        aud_res = self.service.get_inventory(file_type="audio")
+        self.assertEqual(aud_res["total"], 1)
+        self.assertEqual(aud_res["items"][0].id, a_aud.id)
+
+        # Filter by document
+        doc_res = self.service.get_inventory(file_type="document")
+        self.assertEqual(doc_res["total"], 1)
+        self.assertEqual(doc_res["items"][0].id, a_doc.id)
+
+        # Filter by all
+        all_res = self.service.get_inventory(file_type="all")
+        self.assertEqual(all_res["total"], 4)
+
     def test_asset_deletion(self):
         """Verify DB record deletion and storage file cleanup."""
         asset = self.service.upload_asset(AssetCreate(

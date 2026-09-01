@@ -98,6 +98,55 @@ class TestAPIRoutes(unittest.TestCase):
         self.assertIn("ASSETVAULT INTEGRITY REPORT", report)
         self.assertIn("Total Assets Registered: 1", report)
 
+    def test_api_file_type_filtering(self):
+        """Test GET /api/assets with file_type query parameter."""
+        from fastapi.testclient import TestClient
+        client = TestClient(app)
+
+        asset_service = AssetService(self.db)
+        asset_service.upload_asset(
+            AssetCreate_Mock(
+                name="banner.jpg",
+                originalName="banner.jpg",
+                mimeType="image/jpeg",
+                sizeBytes=2048,
+                storagePath="storage/banner.jpg",
+                description="Hero banner",
+                tags=[]
+            )
+        )
+        asset_service.upload_asset(
+            AssetCreate_Mock(
+                name="promo.mp4",
+                originalName="promo.mp4",
+                mimeType="video/mp4",
+                sizeBytes=8192,
+                storagePath="storage/promo.mp4",
+                description="Promo video",
+                tags=[]
+            )
+        )
+
+        # Query images only
+        res_img = client.get("/api/assets?file_type=image")
+        self.assertEqual(res_img.status_code, 200)
+        data_img = res_img.json()
+        self.assertEqual(data_img["total"], 1)
+        self.assertEqual(data_img["items"][0]["name"], "banner.jpg")
+
+        # Query videos only
+        res_vid = client.get("/api/assets?file_type=video")
+        self.assertEqual(res_vid.status_code, 200)
+        data_vid = res_vid.json()
+        self.assertEqual(data_vid["total"], 1)
+        self.assertEqual(data_vid["items"][0]["name"], "promo.mp4")
+
+        # Query all
+        res_all = client.get("/api/assets?file_type=all")
+        self.assertEqual(res_all.status_code, 200)
+        data_all = res_all.json()
+        self.assertEqual(data_all["total"], 2)
+
 
 class AssetCreate_Mock:
     def __init__(self, name, originalName, mimeType, sizeBytes, storagePath, description, tags):

@@ -270,8 +270,15 @@ class FolderService:
                     created_at=datetime.utcnow()
                 )
                 asset.tags = resolved_tags
-                self.asset_repo.save(asset)
+                saved_asset = self.asset_repo.save(asset)
                 newly_indexed += 1
+
+                # Pre-generate thumbnail in cache
+                try:
+                    from app.services.thumbnail_service import thumbnail_service
+                    thumbnail_service.get_or_generate_thumbnail(self.db, saved_asset.id, 350, 350)
+                except Exception as thumb_err:
+                    logger.debug(f"Could not pre-generate thumbnail for {saved_asset.id}: {thumb_err}")
 
             except Exception as e:
                 logger.error(f"Error indexing file {file_path}: {e}")

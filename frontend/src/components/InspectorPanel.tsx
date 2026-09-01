@@ -55,22 +55,25 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
   };
 
   const handleExecuteMove = async () => {
-    if (!moveTargetDir.trim()) return;
+    const cleanDir = moveTargetDir.trim().replace(/^["']|["']$/g, '');
+    if (!cleanDir) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await batchMove([asset.id], moveTargetDir.trim());
-      if (res.errors && res.errors.length > 0) {
-        setError(res.errors.join(', '));
-      } else {
+      const res = await batchMove([asset.id], cleanDir);
+      if (res && res.moved_count > 0) {
         setIsMoving(false);
         const fileName = asset.original_name || asset.name;
-        const newPath = `${moveTargetDir.trim()}\\${fileName}`;
+        const newPath = `${cleanDir}\\${fileName}`;
         onAssetUpdated({
           ...asset,
           storage_path: newPath,
           absolute_path: newPath
         });
+      } else if (res && res.errors && res.errors.length > 0) {
+        setError(res.errors.join(', '));
+      } else {
+        setError('Failed to move file');
       }
     } catch (err: any) {
       setError(err.message || 'Failed to move file');
@@ -433,10 +436,10 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                   {!protectedTag && (
                     <button
                       onClick={() => handleRemoveTag(t.name)}
-                      className="ml-1.5 text-slate-400 hover:text-rose-400"
+                      className="ml-1.5 p-0.5 rounded text-slate-400 hover:text-white hover:bg-rose-600/80 transition-colors cursor-pointer"
                       title="Remove Tag"
                     >
-                      &times;
+                      <X className="w-3 h-3" />
                     </button>
                   )}
                 </span>

@@ -1,6 +1,6 @@
-from pydantic import BaseModel, computed_field
+from pydantic import BaseModel, computed_field, model_validator
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Any
 import os
 import sys
 from app.schemas.tag import TagResponse
@@ -123,4 +123,15 @@ class BatchRenameRequest(BaseModel):
 
 class BatchMoveRequest(BaseModel):
     asset_ids: List[str]
-    destination_folder: str
+    destination_folder: str = ""
+    destination_directory: Optional[str] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def resolve_destination(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            dest = data.get("destination_folder") or data.get("destination_directory") or data.get("destinationFolder") or data.get("destinationDirectory")
+            if not dest or not str(dest).strip().strip('"').strip("'"):
+                raise ValueError("destination_folder is required.")
+            data["destination_folder"] = str(dest).strip().strip('"').strip("'")
+        return data

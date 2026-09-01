@@ -117,6 +117,9 @@ d:\Projects\asset-vault/
 - **Process Exit (`atexit`) Hooks**: `atexit.register(watcher_service.stop_all)` ensures all watchdog Win32 observer/emitter threads terminate cleanly upon process exit.
 - **Desktop Window Closed Hook**: When the PyWebView window closes (`window.events.closed`), the application triggers full graceful shutdown, terminating backend threads and preventing orphaned background processes (Rule #14).
 
+### 7. Standalone Executable Packaging Policy
+- **Automatic Portable Executable Rebuild**: Whenever changes are made to frontend assets or backend services, the standalone desktop executable must be repackaged via `python build_desktop.py` to ensure `dist/AssetVault.exe` is kept synchronized (Rule #15).
+
 ---
 
 ## 🚀 Quick Execution Commands

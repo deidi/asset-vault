@@ -7,7 +7,7 @@ logger = logging.getLogger("assetvault.db")
 
 engine = create_engine(
     settings.database_url,
-    connect_args={"check_same_thread": False}
+    connect_args={"check_same_thread": False, "timeout": 30.0}
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -19,7 +19,15 @@ def init_db(target_engine=None):
     db_engine = target_engine or engine
     Base.metadata.create_all(bind=db_engine)
     
-    # Auto-migration for SQLite tables
+    # Auto-migration and concurrency optimization for SQLite tables
+    try:
+        with db_engine.connect() as conn:
+            conn.execute(text("PRAGMA journal_mode=WAL;"))
+            conn.execute(text("PRAGMA busy_timeout=30000;"))
+            conn.commit()
+    except Exception as e:
+        logger.debug(f"SQLite PRAGMA setup note: {e}")
+
     try:
         with db_engine.connect() as conn:
             # Check files table columns

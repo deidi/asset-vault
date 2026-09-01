@@ -74,8 +74,22 @@ def wait_for_server(url: str, timeout: float = 15.0) -> bool:
     return False
 
 class DesktopApi:
+    def __init__(self):
+        self._window = None
+
+    def set_window(self, window):
+        self._window = window
+
     def choose_folder(self):
         """Native folder picker invoked directly from JS bridge."""
+        if self._window:
+            try:
+                res = self._window.create_file_dialog(webview.FOLDER_DIALOG)
+                if res and len(res) > 0:
+                    return os.path.normpath(res[0])
+            except Exception as e:
+                logger.warning(f"PyWebView folder dialog fallback to Tkinter: {e}")
+
         try:
             import tkinter as tk
             from tkinter import filedialog
@@ -84,7 +98,7 @@ class DesktopApi:
             root.attributes("-topmost", True)
             folder = filedialog.askdirectory(title="Select Media Folder for AssetVault")
             root.destroy()
-            return folder or None
+            return os.path.normpath(folder) if folder else None
         except Exception:
             return None
 
@@ -117,6 +131,7 @@ def main():
         text_select=True,
         zoomable=True
     )
+    api.set_window(window)
 
     # 4. Clean Shutdown Lifecycle Handler
     def on_window_closed():

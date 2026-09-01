@@ -13,6 +13,7 @@ from app.models.tag import Tag
 from app.models.library_folder import LibraryFolder
 from app.repositories.asset_repository import AssetRepository
 from app.services.tag_service import TagService
+from app.services.watcher_service import watcher_service
 
 logger = logging.getLogger("assetvault.explorer")
 
@@ -105,7 +106,8 @@ class ExplorerService:
         if os.path.exists(target_path):
             raise FileExistsError(f"A file named '{final_filename}' already exists in the same folder.")
 
-        # Rename file on disk
+        # Rename file on disk with watcher suppression
+        watcher_service.suppress_paths([current_path, target_path], duration_sec=5.0)
         os.replace(current_path, target_path)
 
         # Update Asset in DB
@@ -143,6 +145,7 @@ class ExplorerService:
         abs_target_path = asset_service.get_asset_file_path(asset.id)
 
         if abs_target_path and os.path.exists(abs_target_path):
+            watcher_service.suppress_paths([abs_target_path], duration_sec=5.0)
             try:
                 send2trash.send2trash(abs_target_path)
             except Exception as e:
@@ -176,37 +179,69 @@ class ExplorerService:
 
     def batch_move(self, asset_ids: List[str], destination_folder: str) -> Dict[str, Any]:
         """Moves assets on disk to a destination directory and updates their paths in DB."""
-        dest_dir = os.path.normpath(destination_folder)
+        dest_dir = os.path.normpath(destination_folder.strip().strip('"').strip("'"))
         if not os.path.exists(dest_dir):
-            os.makedirs(dest_dir, exist_ok=True)
+            try:
+                os.makedirs(dest_dir, exist_ok=True)
+            except Exception as e:
+                return {
+                    "status": "error",
+                    "total_requested": len(asset_ids),
+                    "moved_count": 0,
+                    "destination": dest_dir,
+                    "errors": [f"Could not create destination directory: {str(e)}"]
+                }
 
-        # Match destination to an active library folder if applicable
+        # Match destination to an active library folder if applicable (case-insensitive on Windows)
         matching_folder = None
+        norm_dest_case = os.path.normcase(dest_dir)
         for folder in self.db.query(LibraryFolder).filter(LibraryFolder.is_active == True).all():
-            norm_fpath = os.path.normpath(folder.path)
-            if dest_dir == norm_fpath or dest_dir.startswith(norm_fpath + os.sep) or dest_dir.startswith(norm_fpath + "/"):
+            norm_fpath_case = os.path.normcase(os.path.normpath(folder.path))
+            if norm_dest_case == norm_fpath_case or norm_dest_case.startswith(norm_fpath_case + os.sep) or norm_dest_case.startswith(norm_fpath_case + "/"):
                 matching_folder = folder
                 break
+
+        from app.services.asset_service import AssetService
+        asset_service = AssetService(self.db)
 
         moved_count = 0
         errors: List[str] = []
 
         for asset_id in asset_ids:
-            asset = self.asset_repo.find_by_id(asset_id)
-            if not asset or not asset.storage_path:
-                errors.append(f"Asset {asset_id} not found or missing path.")
-                continue
-
-            current_path = os.path.normpath(asset.storage_path)
-            if not os.path.exists(current_path):
-                errors.append(f"File not found on disk: {current_path}")
-                continue
-
-            filename = os.path.basename(current_path)
-            target_path = os.path.normpath(os.path.join(dest_dir, filename))
-
             try:
+                asset = self.asset_repo.find_by_id(asset_id)
+                if not asset:
+                    errors.append(f"Asset {asset_id} not found.")
+                    continue
+
+                current_path = asset_service.get_asset_file_path(asset.id)
+                if not current_path or not os.path.exists(current_path):
+                    errors.append(f"File not found on disk: {asset.storage_path or asset.name}")
+                    continue
+
+                filename = os.path.basename(current_path)
+                target_path = os.path.normpath(os.path.join(dest_dir, filename))
+
+                if os.path.normcase(target_path) == os.path.normcase(current_path):
+                    moved_count += 1
+                    continue
+
+                # Handle destination filename collision
+                if os.path.exists(target_path):
+                    base_stem, ext = os.path.splitext(filename)
+                    counter = 1
+                    while os.path.exists(target_path):
+                        new_candidate = f"{base_stem}_{counter}{ext}"
+                        target_path = os.path.normpath(os.path.join(dest_dir, new_candidate))
+                        counter += 1
+                    filename = os.path.basename(target_path)
+
+                # Suppress watcher on both paths during move
+                watcher_service.suppress_paths([current_path, target_path], duration_sec=5.0)
+
                 shutil.move(current_path, target_path)
+                asset.name = filename
+                asset.original_name = filename
                 asset.storage_path = target_path
                 asset.file_modified_at = datetime.utcnow()
                 if matching_folder:
@@ -214,7 +249,17 @@ class ExplorerService:
                 self.asset_repo.save(asset)
                 moved_count += 1
             except Exception as e:
-                errors.append(f"Failed moving {filename}: {str(e)}")
+                errors.append(f"Failed moving asset {asset_id}: {str(e)}")
+
+        if moved_count > 0:
+            try:
+                from app.services.connection_manager import manager
+                manager.broadcast_sync("library_updated", {
+                    "moved_count": moved_count,
+                    "destination": dest_dir
+                })
+            except Exception:
+                pass
 
         return {
             "status": "success" if not errors else "partial",

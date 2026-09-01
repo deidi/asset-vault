@@ -11,6 +11,7 @@ export async function fetchAssets(params: {
   subfolderPath?: string;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
+  fileType?: string;
 }): Promise<InventoryResponse> {
   const query = new URLSearchParams();
   if (params.page) query.append('page', params.page.toString());
@@ -20,6 +21,7 @@ export async function fetchAssets(params: {
   if (params.subfolderPath) query.append('subfolder_path', params.subfolderPath);
   if (params.sortBy) query.append('sort_by', params.sortBy);
   if (params.sortOrder) query.append('sort_order', params.sortOrder);
+  if (params.fileType && params.fileType !== 'all') query.append('file_type', params.fileType);
   if (params.tags && params.tags.length > 0) {
     params.tags.forEach(t => query.append('tags', t));
   }
@@ -82,10 +84,18 @@ export async function updateFolder(id: string, payload: Partial<LibraryFolder>):
 
 export async function pickFolderDialog(): Promise<string | null> {
   try {
+    if ((window as any).pywebview?.api?.choose_folder) {
+      const res = await (window as any).pywebview.api.choose_folder();
+      if (res) return String(res).replace(/^["']|["']$/g, '');
+    }
+  } catch (e) {
+    console.warn('PyWebView folder picker error:', e);
+  }
+  try {
     const res = await fetch(`${API_BASE}/folders/picker`, { method: 'POST' });
     if (!res.ok) return null;
     const data = await res.json();
-    return data.selected_path || null;
+    return data.selected_path ? String(data.selected_path).replace(/^["']|["']$/g, '') : null;
   } catch {
     return null;
   }
@@ -149,13 +159,20 @@ export async function trashToRecycleBin(assetIds: string[]): Promise<{ trashed_c
   return res.json();
 }
 
-export async function batchMove(assetIds: string[], destinationDirectory: string): Promise<{ moved_count: number; errors: string[] }> {
+export async function batchMove(assetIds: string[], destinationDirectory: string): Promise<{ status?: string; moved_count: number; errors: string[] }> {
   const res = await fetch(`${API_BASE}/explorer/move`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ asset_ids: assetIds, destination_directory: destinationDirectory }),
+    body: JSON.stringify({
+      asset_ids: assetIds,
+      destination_folder: destinationDirectory,
+      destination_directory: destinationDirectory,
+    }),
   });
-  if (!res.ok) throw new Error('Failed to move files');
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || errorData.message || 'Failed to move files');
+  }
   return res.json();
 }
 
@@ -170,10 +187,11 @@ export async function updateAssetTags(assetId: string, tags: string[]): Promise<
 }
 
 export async function batchUpdateTags(assetIds: string[], operation: 'add' | 'remove' | 'replace', tags: string[]): Promise<any> {
-  const res = await fetch(`${API_BASE}/assets/batch/tags`, {
+  const endpoint = operation === 'add' ? 'add' : operation === 'remove' ? 'remove' : 'set';
+  const res = await fetch(`${API_BASE}/assets/tags/${endpoint}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ asset_ids: assetIds, operation, tags }),
+    body: JSON.stringify({ asset_ids: assetIds, tags }),
   });
   if (!res.ok) throw new Error('Failed to perform batch tag operation');
   return res.json();

@@ -477,7 +477,8 @@ class AssetService:
         tags: Optional[Union[List[str], str]] = None,
         folder_id: Optional[str] = None,
         subfolder_path: Optional[str] = None,
-        path_prefix: Optional[str] = None
+        path_prefix: Optional[str] = None,
+        file_type: Optional[str] = None
     ) -> dict:
         query = self.db.query(Asset)
 
@@ -522,6 +523,72 @@ class AssetService:
                     Asset.tags.any(Tag.name.ilike(term))
                 )
             )
+
+        if file_type and file_type.strip():
+            ft = file_type.strip().lower()
+            if ft in ("image", "images"):
+                query = query.filter(
+                    or_(
+                        Asset.mime_type.ilike("image/%"),
+                        Asset.name.ilike("%.png"),
+                        Asset.name.ilike("%.jpg"),
+                        Asset.name.ilike("%.jpeg"),
+                        Asset.name.ilike("%.gif"),
+                        Asset.name.ilike("%.webp"),
+                        Asset.name.ilike("%.svg"),
+                        Asset.name.ilike("%.bmp"),
+                        Asset.name.ilike("%.tiff"),
+                        Asset.name.ilike("%.ico"),
+                        Asset.name.ilike("%.jfif")
+                    )
+                )
+            elif ft in ("video", "videos"):
+                query = query.filter(
+                    or_(
+                        Asset.mime_type.ilike("video/%"),
+                        Asset.name.ilike("%.mp4"),
+                        Asset.name.ilike("%.webm"),
+                        Asset.name.ilike("%.mov"),
+                        Asset.name.ilike("%.mkv"),
+                        Asset.name.ilike("%.avi"),
+                        Asset.name.ilike("%.wmv"),
+                        Asset.name.ilike("%.flv"),
+                        Asset.name.ilike("%.m4v")
+                    )
+                )
+            elif ft in ("audio", "music"):
+                query = query.filter(
+                    or_(
+                        Asset.mime_type.ilike("audio/%"),
+                        Asset.name.ilike("%.mp3"),
+                        Asset.name.ilike("%.wav"),
+                        Asset.name.ilike("%.ogg"),
+                        Asset.name.ilike("%.flac"),
+                        Asset.name.ilike("%.m4a"),
+                        Asset.name.ilike("%.aac"),
+                        Asset.name.ilike("%.wma")
+                    )
+                )
+            elif ft in ("document", "documents", "pdf"):
+                query = query.filter(
+                    or_(
+                        Asset.mime_type.ilike("%pdf%"),
+                        Asset.mime_type.ilike("%document%"),
+                        Asset.mime_type.ilike("%text%"),
+                        Asset.name.ilike("%.pdf"),
+                        Asset.name.ilike("%.txt"),
+                        Asset.name.ilike("%.doc"),
+                        Asset.name.ilike("%.docx")
+                    )
+                )
+            elif ft != "all":
+                ext = ft.lstrip(".")
+                query = query.filter(
+                    or_(
+                        Asset.name.ilike(f"%.{ext}"),
+                        Asset.mime_type.ilike(f"%{ft}%")
+                    )
+                )
 
         if tags:
             tag_inputs = tags if isinstance(tags, list) else [tags]
