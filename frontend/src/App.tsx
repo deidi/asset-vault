@@ -58,7 +58,7 @@ export const App: React.FC = () => {
       const [assetsRes, foldersRes] = await Promise.all([
         fetchAssets({
           page: 1,
-          pageSize: 500,
+          pageSize: 50000,
           search: searchQuery || undefined,
           folderId: selectedFolderId || undefined,
           subfolderPath: selectedSubfolderPath || undefined,
