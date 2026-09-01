@@ -57,7 +57,17 @@ The overhaul has transformed AssetVault into a **high-performance standalone Win
 
 ---
 
-## 🔮 Milestone 3: Future Enhancements (v2.1.0+)
+## 🚀 Milestone 2.1: Release v1.0 & v1.0.2 (Advanced UX & File Management Suite) - COMPLETED
+- **File Type Format Filters**: Filter media grid by All, Images, Videos, Audio, or Documents.
+- **Dynamic Catalog Sizing & Select All**: Global `Ctrl + A` / `Cmd + A` selecting thousands of assets seamlessly without hardcoded limits.
+- **Watchdog Event Suppression & SQLite WAL Concurrency**: Thread-safe event suppression preventing `StaleDataError` race conditions during batch moves, renames, and trashing.
+- **Common Tags Redesign**: Visual chip-based removal for shared tags across selected assets.
+- **Startup Library Reconcile**: Background sync scanning and indexing newly added offline files on app launch.
+- **GitHub Release CI/CD**: Automated GitHub Action publishing `dist/AssetVault.exe` to GitHub Releases on tag push (`v*`).
+
+---
+
+## 🔮 Milestone 3: Future Enhancements (v1.2.0+)
 - AI-based local semantic tagging (CLIP/BLIP local vision models running offline on ONNX/DirectML).
 - Duplicate and near-duplicate visual media detection (perceptual hashing).
 - EXIF GPS geotagging & interactive offline map explorer.

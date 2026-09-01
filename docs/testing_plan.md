@@ -26,11 +26,14 @@ AssetVault/
 ├── docs/
 │   └── testing_plan.md                 # This comprehensive testing plan
 └── tests/
-    ├── run_tests.py                    # Automated test runner script
-    ├── test_asset_service.py           # Unit tests for core asset & tag logic
+    ├── run_tests.py                    # Automated test runner script (22 tests)
+    ├── test_asset_service.py           # Unit tests for asset, tags, and file type filters
     ├── test_api_routes.py              # Integration tests for core asset REST routes
-    ├── test_folder_and_explorer.py     # Unit tests for in-place folder & explorer actions
-    └── test_folder_and_explorer_api.py # Integration tests for folder & explorer REST routes
+    ├── test_folder_and_explorer.py     # Unit tests for folders, tree counts, moves & explorer
+    ├── test_folder_and_explorer_api.py # Integration tests for folder & explorer REST routes
+    ├── test_thumbnail_and_cache.py     # Thumbnail generator, video & cache API tests
+    ├── test_watcher_service.py         # File watcher lifecycle & event simulation tests
+    └── test_ws_api.py                  # WebSocket live sync tests
 ```
 
 ---
@@ -41,7 +44,9 @@ AssetVault/
 - **Multi-Folder Registration & Scanning**: Verifies adding library folders, recursive vs flat scanning, media file type filtering, and auto-tag generation (`#png`, `#filename`, `#year`, `#custom_tag`).
 - **Idempotent Scanning**: Verifies that re-scanning an already indexed folder updates stats without duplicating records.
 - **In-Place Disk Rename**: Verifies atomic `os.replace` rename on disk, database path synchronization, and `#filename` protected tag migration.
+- **Batch Move Operations**: Verifies moving multiple files between directories on disk with collision resolution (`test_batch_move_assets`).
 - **Recycle Bin Trashing**: Verifies `send2trash` integration and database cleanup.
+- **Folder Tree & Subfolder Filtering**: Verifies recursive subfolder asset count calculations and subfolder queries.
 
 ### 2. In-Place Folder & Explorer API Tests (`tests/test_folder_and_explorer_api.py`)
 - **Folder CRUD Endpoints**: Tests `POST /api/folders`, `GET /api/folders`, `GET /api/folders/{id}`, `PATCH /api/folders/{id}`, and `DELETE /api/folders/{id}`.
@@ -52,20 +57,30 @@ AssetVault/
 - **Auto-Tagging Policy**: Verifies uploaded assets are auto-tagged with complete filename, filetype extension, and current year.
 - **Protected System Tags**: Verifies `is_protected_tag()` identifies complete filename and filetype tags.
 - **Batch Tag Operations**: Tests `batch_add_tags`, `batch_remove_tags`, `batch_replace_tag`, and `batch_set_tags`.
-- **Inventory Queries**: Tests pagination, sorting, text search, and multi-tag AND-logic filtering.
+- **Inventory Queries & File Type Filters**: Tests pagination, sorting, text search, and multi-tag AND-logic filtering, plus image, video, audio, and document format filtering (`test_inventory_file_type_filtering`).
 - **Asset Deletion & Storage Cleanup**: Verifies DB record removal and file cleanup.
 
 ### 4. Core API Route Integration Tests (`tests/test_api_routes.py`)
 - **Upload Endpoints**: Tests `POST /api/upload` (JSON metadata and multipart upload).
-- **Inventory Endpoint**: Tests `GET /api/assets` with pagination, sorting, search, and tag filters.
+- **Inventory Endpoint & File Type Filtering**: Tests `GET /api/assets` with pagination, sorting, search, tag filters, and `file_type` filtering (`test_get_assets_file_type_filtering`).
 - **Integrity Verification**: Tests `GET /api/assets/verify` integrity report output.
+
+### 5. Thumbnail & Cache Tests (`tests/test_thumbnail_and_cache.py`)
+- **Image Thumbnail Generation**: Tests WebP image thumbnail generation and dimension preservation.
+- **Video Thumbnail Generation**: Tests native Windows Shell video keyframe extraction and play badge overlay.
+- **Cache Clearing & Endpoints**: Tests `GET /api/cache/stats`, `POST /api/cache/clear`, and `POST /api/library/rescan`.
+
+### 6. Watcher Service & Live Sync Tests (`tests/test_watcher_service.py`, `tests/test_ws_api.py`)
+- **Watcher Lifecycle**: Tests starting, scheduling, unscheduling, and stopping watchdog directory observers.
+- **Handler Event Simulation**: Tests simulated `on_created`, `on_moved`, and `on_deleted` filesystem events.
+- **WebSocket Broadcast**: Tests WebSocket client connection and ping/pong heartbeat.
 
 ---
 
 ## 🚀 Running the Tests
 
 ### Command Line Execution
-Run all unit and integration tests using the Python virtual environment:
+Run all 22 unit and integration tests using the Python virtual environment:
 
 ```powershell
 # From the project root directory
@@ -77,16 +92,9 @@ Run all unit and integration tests using the Python virtual environment:
 ==================================================
         ASSETVAULT TEST SUITE EXECUTION           
 ==================================================
-test_add_and_scan_folder (test_folder_and_explorer.TestFolderAndExplorerService) ... ok
-test_in_place_rename_on_disk (test_folder_and_explorer.TestFolderAndExplorerService) ... ok
-test_trash_to_recycle_bin (test_folder_and_explorer.TestFolderAndExplorerService) ... ok
-test_folder_crud_and_scan_api (test_folder_and_explorer_api.TestFolderAndExplorerAPI) ... ok
-test_batch_tag_operations (test_asset_service.TestAssetService) ... ok
-test_is_protected_tag (test_asset_service.TestAssetService) ... ok
-test_upload_auto_tagging (test_asset_service.TestAssetService) ... ok
 ...
 ----------------------------------------------------------------------
-Ran 11 tests in 0.820s
+Ran 22 tests in 1.250s
 
 OK
 ==================================================
@@ -94,7 +102,7 @@ OK
 ==================================================
 
 Test Summary:
-  Total Run : 11
+  Total Run : 22
   Failures  : 0
   Errors    : 0
 ```

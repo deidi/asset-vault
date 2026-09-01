@@ -41,11 +41,12 @@ Welcome to AssetVault! Here is a step-by-step walkthrough to get you started imm
 
 ---
 
-### 4. 🔍 Searching & Tag Filtering
+### 4. 🔍 Searching, File Type & Tag Filtering
 * **Dynamic Search Bar**: Type in the top search bar to search across filenames, descriptions, and tags. The search bar dynamically adapts when the window is resized.
+* **File Type Filters**: Use the format filter pills sub-bar to instantly filter your grid by **All Files**, **Images** (`ImageIcon`), **Videos** (`Film`), **Audio** (`Music`), or **Documents** (`FileText`).
 * **Tag Chips**: In the sidebar's **Tags** section, click on any tag chip (e.g., `#mp4`, `#2026`, `#Audio`) to filter your media.
 * **Multi-Tag AND-Logic**: Click multiple tags to combine them. AssetVault filters to assets containing *all* selected tags.
-* **Clear Tags**: Click *Clear all* at the top of the tag filter list to reset tag filters.
+* **Clear Filters**: Click *Clear all* or the empty state reset buttons to instantly reset tag and file type filters.
 
 ---
 
@@ -64,25 +65,27 @@ Welcome to AssetVault! Here is a step-by-step walkthrough to get you started imm
 Click once on any media card to open the right-hand Inspector drawer:
 * **In-Place Disk Rename**: Click the pencil icon next to the filename, type a new name, and press `Enter`. AssetVault safely renames the file directly on your hard drive (`os.replace`) and updates the `#filename` tag automatically.
 * **Reveal in Explorer**: Click **Show in Explorer** to immediately highlight the exact file in Windows File Explorer (`explorer.exe /select`).
-* **Tag Management**: Add new tags or remove existing ones. System tags (file extension and complete filename) are safely marked with a `🔒` protected lock badge.
+* **Move to Another Folder**: Click **Move to Another Folder** to browse or enter a destination directory on disk and move the file safely with watcher suppression.
+* **Tag Management**: Add new tags or remove existing ones with individual `✕` buttons. System tags (file extension and complete filename) are safely marked with a `🔒` protected lock badge.
 * **Send to Recycle Bin**: Click **Move to Recycle Bin** to safely send the file on disk to the Windows Recycle Bin (`send2trash`).
 
 ---
 
 ### 7. 📦 Multi-Select & Batch Operations
+* **Select All (`Ctrl + A` / `Cmd + A`)**: Press `Ctrl + A` (or `Cmd + A` on macOS) anywhere on the grid or click the top toolbar checkbox to select all assets across the entire library at once (without 500-item caps). Press `Esc` to deselect all.
 * **Multi-Select**: Hold `Ctrl` (or `Cmd`) while clicking cards to select multiple items, or hold `Shift` to select a range.
 * **Batch Action Bar**: When multiple items are selected, a floating toolbar appears at the bottom allowing you to:
   * **Batch Add Tags**: Apply one or more tags across all selected assets at once.
-  * **Batch Remove Tags**: Strip specific tags from the selection.
-  * **Batch Replace Tags**: Swap out an old tag for a new one.
-  * **Batch Move**: Relocate all selected files on disk to a different folder.
+  * **Batch Remove Common Tags**: View all shared tags across the selected assets and click individual `✕` chips or "Remove All Common Tags" to strip them cleanly.
+  * **Batch Move**: Relocate all selected files on disk to a target directory with native Windows folder browsing, automatic quote sanitization (for Windows "Copy as path"), and collision resolution (`file_1.ext`).
   * **Batch Recycle Bin**: Safely send all selected files to the Windows Recycle Bin.
   * **Download ZIP**: Package selected files into a single ZIP archive.
 
 ---
 
 ### 8. ⚡ Cache Management & Live File System Sync
-* **Live Sync Active**: The green indicator in the sidebar confirms that the background file watcher (`watchdog`) is active. Any files added, renamed, or deleted outside AssetVault in Windows Explorer will automatically sync in real time.
+* **Live Sync & Startup Reconcile**: On launch, AssetVault automatically scans all registered library folders in the background, indexing any files created while the app was closed and pre-generating WebP thumbnails.
+* **Real-Time Watcher**: The green indicator in the sidebar confirms that the background file watcher (`watchdog`) is active with thread-safe event suppression (`suppress_paths`).
 * **Cache Manager**: Click the database settings icon at the bottom of the sidebar to view thumbnail disk usage, flush cached WebP thumbnails, or trigger a full library integrity rescan.
 
 ---
@@ -90,10 +93,12 @@ Click once on any media card to open the right-hand Inspector drawer:
 ## 🚀 Key Features Summary
 
 - **In-Place Reference Mode**: Zero duplicate files — media stays on your hard drive.
+- **Dynamic Library Catalog Sizing**: Automatically sizes catalog requests based on total active library file counts for seamless full-library browsing and `Ctrl + A` selection.
+- **File Type Filters**: Dedicated format sub-bar for Images, Videos, Audio, Documents, and All files.
 - **Recursive Subfolder Tree**: Collapsible tree with O(1) cached branch count calculations.
 - **Video Keyframe Thumbnail Generator**: Native Windows Shell frame extraction with zero external dependencies.
-- **Real-Time Watcher**: Background Win32 kernel hooks auto-reconcile file system changes via WebSockets.
-- **Protected System Tags**: Distinguishes auto-generated extension and filename tags (`🔒`) from user tags.
+- **Real-Time Watcher & Event Suppression**: Background Win32 kernel hooks auto-reconcile file system changes via WebSockets while suppressing internal move/rename events to prevent race conditions.
+- **Protected System Tags & Common Tag Chips**: Distinguishes auto-generated tags (`🔒`) and displays common tags with individual removal chips.
 - **Recycle Bin Integration**: Full `send2trash` integration for non-destructive trashing.
 - **Modern Dark UI**: Glassmorphism aesthetic, tailored color palette, responsive search bar, and custom slim scrollbars.
 - **Standalone Desktop Distribution**: Self-contained single executable (`AssetVault.exe`) packaged with PyInstaller and PyWebView.
@@ -107,8 +112,8 @@ Click once on any media card to open the right-hand Inspector drawer:
 | **Desktop Shell** | PyWebView + PyInstaller (Standalone `.exe`) |
 | **Frontend** | React 19 + TypeScript + Vite + TailwindCSS + Lucide Icons |
 | **Backend** | FastAPI + Uvicorn (Python 3.10+) |
-| **Database** | SQLite via SQLAlchemy ORM (Clean Architecture) |
-| **File System** | In-Place reference mode, `watchdog` Win32 events, `send2trash` Recycle Bin |
+| **Database** | SQLite with WAL mode & 30s busy timeout via SQLAlchemy ORM |
+| **File System** | In-Place reference mode, `watchdog` Win32 events with event suppression, `send2trash` Recycle Bin |
 | **Media & Video** | Windows Shell `IThumbnailProvider` + Pillow (PIL) WebP Cache |
 
 ---
@@ -123,16 +128,16 @@ d:\Projects\asset-vault/
 ├── backend/                    # FastAPI Clean Architecture backend
 │   ├── app/
 │   │   ├── config.py           # Configuration & environment variables
-│   │   ├── db/                 # Database engine & SQLite session
+│   │   ├── db/                 # Database engine & SQLite session (WAL mode)
 │   │   ├── models/             # SQLAlchemy DB models (Asset, Tag, LibraryFolder)
 │   │   ├── repositories/       # Data access query layers
 │   │   ├── routes/             # Thin FastAPI REST routers
 │   │   ├── schemas/            # Pydantic input/output validation schemas
-│   │   └── services/           # Business logic (Folder, Explorer, Asset, Tag, Thumbnail)
+│   │   └── services/           # Business logic (Folder, Explorer, Asset, Tag, Thumbnail, Watcher)
 │   ├── db/                     # SQLite database files
 │   └── requirements.txt        # Python dependencies
 ├── dist/                       # Standalone application build output
-│   └── AssetVault.exe          # Portable Windows desktop executable
+│   └── AssetVault.exe          # Portable Windows desktop executable (39.2 MB)
 ├── docs/                       # System documentation
 │   ├── api.md                  # REST API specification
 │   ├── architecture.md         # System architecture & Clean Architecture layers
@@ -147,8 +152,8 @@ d:\Projects\asset-vault/
 ├── tasks/                      # Milestone documentation
 │   ├── TASKS_SUMMARY.md        # Master task summary index
 │   └── archive/                # Historical task logs (000 - 012)
-├── tests/                      # Automated test suite
-│   ├── run_tests.py            # Test runner (19/19 tests passing)
+├── tests/                      # Automated test suite (22/22 tests passing)
+│   ├── run_tests.py            # Test runner (22 tests)
 │   ├── test_asset_service.py   # Asset & tag logic unit tests
 │   ├── test_api_routes.py      # Core asset REST route tests
 │   ├── test_folder_and_explorer.py     # In-place folder & explorer unit tests

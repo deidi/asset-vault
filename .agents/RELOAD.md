@@ -40,11 +40,11 @@ d:\Projects\asset-vault/
 ├── tasks/
 │   ├── TASKS_SUMMARY.md            # Master task summary index
 │   └── archive/                    # Archived historical task logs (000 - 012)
-├── tests/                          # 19/19 passing automated test suite
-│   ├── run_tests.py                # Automated test runner
-│   ├── test_asset_service.py       # AssetService unit tests
-│   ├── test_api_routes.py          # REST API integration tests
-│   ├── test_folder_and_explorer.py # Folder & Explorer service unit tests
+├── tests/                          # 22/22 passing automated test suite
+│   ├── run_tests.py                # Automated test runner (22 tests)
+│   ├── test_asset_service.py       # AssetService & file type filter unit tests
+│   ├── test_api_routes.py          # REST API & file type integration tests
+│   ├── test_folder_and_explorer.py # Folder, tree counts, batch move & explorer unit tests
 │   ├── test_folder_and_explorer_api.py # Folder & Explorer REST API integration tests
 │   ├── test_thumbnail_and_cache.py # Thumbnail generator & video thumbnail tests
 │   ├── test_watcher_service.py     # File watcher lifecycle & event tests
@@ -58,7 +58,8 @@ d:\Projects\asset-vault/
 
 ## 💾 Data Models & Key Policies
 
-### 1. Database Entities
+### 1. Database Entities & Concurrency
+- **SQLite WAL Mode**: Configured with `PRAGMA journal_mode=WAL;` and 30-second busy timeout in `backend/app/db/session.py` to prevent locking between the FastAPI request thread pool and Watchdog observer threads.
 - **LibraryFolder** (`app.models.library_folder.LibraryFolder`):
   - `id`: UUID (Primary Key, String)
   - `path`: Absolute disk directory path (unique)
@@ -92,28 +93,29 @@ d:\Projects\asset-vault/
 - Media files remain in their original folders on disk.
 - **Show in Explorer**: `POST /api/explorer/reveal` launches Windows File Explorer highlighting the exact item (`explorer.exe /select,"<path>"`).
 - **In-Place Rename**: `POST /api/explorer/rename` renames the file on disk (`os.replace`) and updates DB records & `#filename` tag atomically.
+- **Batch Move**: `POST /api/explorer/batch-move` moves files to destination folder with quote stripping (Windows "Copy as path"), collision resolution (`file_1.ext`), and watcher suppression.
 - **Recycle Bin Trashing**: `POST /api/explorer/trash` safely sends files to the Windows Recycle Bin using `send2trash`.
 
-### 3. Video Thumbnail Generation Policy
-- Uses native Windows Shell `IThumbnailProvider` via ctypes (`shell32.dll`, `ole32.dll`) to extract crystal-clear keyframes from `.mp4`, `.mov`, `.mkv`, `.avi`, `.webm`, `.wmv`, `.m4v`, etc.
-- Overlays a semi-transparent video play badge in the thumbnail center.
-- Optimizes and caches thumbnails as `.webp` files under `.cache/thumbnails/`.
+### 3. Watcher Event Suppression Policy
+- During internal move/rename/trash operations in `ExplorerService`, paths are registered in `watcher_service.suppress_paths()`.
+- Watchdog handlers (`on_deleted`, `on_created`, `on_moved`) check `is_suppressed()` to avoid deleting or modifying database rows before the main API transaction commits.
 
-### 4. Ingestion Auto-Tagging Policy
+### 4. Dynamic Catalog Sizing & Select All
+- Frontend computes `pageSize: Math.max(1000, allAssetsCount)` using the sum of asset counts from all registered libraries.
+- Backend `get_inventory` supports unconstrained loading without hardcoded caps when requesting full libraries.
+- Global `Ctrl + A` (and `Cmd + A`) selects all assets across the entire library at once.
+
+### 5. Ingestion Auto-Tagging & File Type Filtering
 - On folder scanning / indexing, AssetVault automatically assigns:
   - **Filetype extension** (e.g. `#png`, `#mp4`, `#pdf`) — protected system tag.
   - **Complete filename** (e.g. `#banner.png`) — protected system tag.
   - **Current/Modified year** (e.g. `#2026`).
   - **Parent folder name** (e.g. `#Photos`) if `auto_tag_folder` is enabled.
   - **Custom folder rules** (e.g. `#ProjectAlpha`) configured on the library folder.
-- Tags matching an asset's complete filename or filetype extension are identified via `is_protected_tag()` as protected system tags (`🔒`).
-
-### 5. Tag Search & Matching Policy
-- Frontend strips `#` for clean display chips.
-- Backend `AssetService.get_inventory` filters tags via `or_(Tag.name.ilike(clean), Tag.name.ilike(f"#{clean}"))` to seamlessly match both prefixed and non-prefixed records with AND-logic.
+- Assets are categorizable via `file_type` query filter (`image`, `video`, `audio`, `document`, `all`).
 
 ### 6. Background Process & Watcher Shutdown Policy
-- **FastAPI Lifespan Context**: File watchers (`WatcherService`) start on startup and stop on shutdown.
+- **FastAPI Lifespan Context**: File watchers (`WatcherService`) start on startup (with background startup sync of offline files) and stop on shutdown.
 - **Process Exit (`atexit`) Hooks**: `atexit.register(watcher_service.stop_all)` ensures all watchdog Win32 observer/emitter threads terminate cleanly upon process exit.
 - **Desktop Window Closed Hook**: When the PyWebView window closes (`window.events.closed`), the application triggers full graceful shutdown, terminating backend threads and preventing orphaned background processes (Rule #14).
 

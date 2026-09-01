@@ -60,7 +60,15 @@ The AssetVault API conforms to REST style conventions, returning and accepting J
 - **Batch Trash Files**: `POST /api/explorer/batch-trash`
   - Payload: `{ "asset_ids": ["uuid-1", "uuid-2"] }`
 - **Batch Move Files**: `POST /api/explorer/batch-move`
-  - Payload: `{ "asset_ids": ["uuid-1", "uuid-2"], "destination_folder": "D:\\Archive" }`
+  - Payload: `{ "asset_ids": ["uuid-1", "uuid-2"], "destination_folder": "D:\\Archive" }` (Accepts `destination_folder` or `destination_directory`, handles quoted Windows paths, and auto-resolves naming collisions).
+  - Response:
+    ```json
+    {
+      "status": "success",
+      "moved_count": 2,
+      "errors": []
+    }
+    ```
 
 ---
 
@@ -69,9 +77,10 @@ The AssetVault API conforms to REST style conventions, returning and accepting J
 - **Method**: `GET`
 - **Query Parameters**:
   - `page`: `int` (default: `1`, minimum: `1`)
-  - `pageSize`: `int` (default: `50`, range: `1` to `10000`)
-  - `sortBy`: `str` (default: `"created_at"`, options: `"created_at"`, `"name"`, `"size"`)
-  - `sortDir`: `str` (default: `"desc"`, options: `"asc"`, `"desc"`)
+  - `pageSize` / `page_size`: `Optional[int]` (default: `50`, dynamic library sizing, or unconstrained when not set)
+  - `sortBy` / `sort_by`: `str` (default: `"created_at"`, options: `"created_at"`, `"name"`, `"size"`)
+  - `sortDir` / `sort_dir`: `str` (default: `"desc"`, options: `"asc"`, `"desc"`)
+  - `file_type` / `fileType`: `Optional[str]` (filters strictly by media family: `"image"`, `"video"`, `"audio"`, `"document"`, `"all"`)
   - `search`: `str` (full-text search query across filenames, descriptions, and tags)
   - `folder_id`: `Optional[str]` (filters strictly to a registered parent library folder)
   - `subfolder_path`: `Optional[str]` (filters strictly to a specific subfolder path prefix)

@@ -65,6 +65,16 @@ To ensure separation of concerns, testability, and maintainability, the backend 
 
 ---
 
+## ⚡ Concurrency & Watchdog Event Suppression
+
+To prevent race conditions, locks, and `StaleDataError` between synchronous user requests and asynchronous Win32 filesystem events:
+
+1. **SQLite WAL (Write-Ahead Logging) Mode**: Configured with `PRAGMA journal_mode=WAL;` and `PRAGMA busy_timeout=30000;` in `backend/app/db/session.py`. This allows concurrent reads and writes between the FastAPI thread pool and the Watchdog observer worker threads without locking.
+2. **Thread-Safe Event Suppression**: `WatcherService` implements `suppress_paths()` context manager and `is_suppressed()` check using a thread-safe `threading.Lock`. During internal operations (such as batch moves, renames, and trashing in `ExplorerService`), source and target file paths are registered for suppression for 3 seconds. This prevents Watchdog handlers (`on_deleted`, `on_created`, `on_moved`) from prematurely deleting database rows before the main transaction commits.
+3. **Startup Library Synchronization**: On application launch, a background task automatically scans all registered active library folders, discovering files created while the app was offline and pre-generating WebP thumbnails.
+
+---
+
 ## 🛑 Background Process & Lifecycle Management
 
 To prevent orphaned `python.exe` processes or zombie file watcher threads on Windows:
