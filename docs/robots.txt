@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://deidi.github.io/asset-vault/sitemap.xml
