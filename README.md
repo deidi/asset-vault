@@ -29,9 +29,8 @@
 Welcome to AssetVault! Here is a step-by-step walkthrough to get you started immediately:
 
 ### 1. 🚀 Launching AssetVault
-* **Option A (Portable Executable)**: Double-click `dist\AssetVault.exe`. No installation, Python, or Node.js required.
-* **Option B (Launcher Script)**: Double-click `run_desktop.bat` in the project root.
-* **Option C (Development Mode)**: Run `.\backend\.venv\Scripts\python.exe desktop_app.py`.
+* Double-click `AssetVault.exe` (located in `dist\AssetVault.exe` or downloaded directly from the [Latest Release](https://github.com/deidi/asset-vault/releases/latest)).
+* **Zero Prerequisites**: No installation, Python environment, or Node.js required — it runs immediately as a fully self-contained portable Windows application.
 
 ---
 
@@ -150,23 +149,29 @@ d:\Projects\asset-vault/
 │   ├── db/                     # SQLite database files
 │   └── requirements.txt        # Python dependencies
 ├── dist/                       # Standalone application build output
-│   └── AssetVault.exe          # Portable Windows desktop executable (39.2 MB)
-├── docs/                       # System documentation
-│   ├── api.md                  # REST API specification
-│   ├── architecture.md         # System architecture & Clean Architecture layers
-│   ├── roadmap.md              # Milestone roadmap
-│   └── testing_plan.md         # Testing strategy and automated test suites
+│   └── AssetVault.exe          # Portable Windows desktop executable
+├── docs/                       # GitHub Pages website & branding assets
+│   ├── index.html              # Landing page website
+│   ├── favicon.png             # Authentic application icon assets
+│   ├── robots.txt              # Search engine directives
+│   └── sitemap.xml             # Google search indexing sitemap
 ├── frontend/                   # React + TypeScript SPA client
 │   ├── src/                    # Components, pages, hooks, state
 │   ├── package.json            # Node.js dependencies
 │   └── vite.config.ts          # Vite build config
+├── mds/                        # Technical & project documentation
+│   ├── api.md                  # REST API specification
+│   ├── architecture.md         # System architecture & Clean Architecture layers
+│   ├── privacy_policy.md       # Privacy policy & offline assurance
+│   ├── roadmap.md              # Milestone roadmap
+│   └── testing_plan.md         # Testing strategy and automated test suites
 ├── public/                     # Compiled frontend bundle served by FastAPI & PyWebView
 ├── storage/                    # Storage directory for internal vault imports
 ├── tasks/                      # Milestone documentation
 │   ├── TASKS_SUMMARY.md        # Master task summary index
 │   └── archive/                # Historical task logs (000 - 012)
-├── tests/                      # Automated test suite (22/22 tests passing)
-│   ├── run_tests.py            # Test runner (22 tests)
+├── tests/                      # Automated test suite (23/23 tests passing)
+│   ├── run_tests.py            # Test runner (23 tests)
 │   ├── test_asset_service.py   # Asset & tag logic unit tests
 │   ├── test_api_routes.py      # Core asset REST route tests
 │   ├── test_folder_and_explorer.py     # In-place folder & explorer unit tests
@@ -181,13 +186,11 @@ d:\Projects\asset-vault/
 
 ---
 
-## 💻 Development & Build Commands
+## 💻 Build & Execution Commands
 
-### 1. Run the Desktop Application
+### 1. Launch the Desktop Application
 ```powershell
-.\run_desktop.bat
-# Or:
-.\backend\.venv\Scripts\python.exe desktop_app.py
+.\dist\AssetVault.exe
 ```
 
 ### 2. Build the Standalone Executable
