@@ -192,5 +192,48 @@ class TestFolderAndExplorerService(unittest.TestCase):
         self.assertEqual(os.path.normpath(updated_asset.storage_path), expected_new_path)
         self.assertTrue(os.path.exists(expected_new_path))
 
+    def test_excluded_paths_and_app_folders(self):
+        """Verify that internal app directories like .cache, backend, dist, node_modules are never scanned."""
+        from app.services.folder_service import is_excluded_path, is_excluded_dir_name
+
+        self.assertTrue(is_excluded_dir_name(".cache"))
+        self.assertTrue(is_excluded_dir_name("backend"))
+        self.assertTrue(is_excluded_dir_name("dist"))
+        self.assertTrue(is_excluded_dir_name("node_modules"))
+        self.assertFalse(is_excluded_dir_name("MyPhotos"))
+
+        # Create dummy internal directories inside the library folder
+        cache_dir = os.path.join(self.temp_dir, ".cache", "thumbnails")
+        os.makedirs(cache_dir, exist_ok=True)
+        with open(os.path.join(cache_dir, "thumb123.webp"), "wb") as f:
+            f.write(b"fake thumb")
+
+        backend_dir = os.path.join(self.temp_dir, "backend", "db")
+        os.makedirs(backend_dir, exist_ok=True)
+        with open(os.path.join(backend_dir, "internal_logo.png"), "wb") as f:
+            f.write(b"fake internal logo")
+
+        folder_service = FolderService(self.db)
+        asset_repo = AssetRepository(self.db)
+
+        folder_res = folder_service.add_folder(LibraryFolderCreate(
+            path=self.temp_dir,
+            name="AppRootTest",
+            is_recursive=True
+        ))
+
+        scan_res = folder_service.scan_folder(folder_res.id)
+        # Should only scan the 2 user files (banner.png, subfolder/clip.mp4), ignoring .cache/ and backend/
+        self.assertEqual(scan_res.total_scanned, 2)
+        self.assertEqual(scan_res.newly_indexed, 2)
+
+        # Check tree does not contain .cache or backend
+        tree = folder_service.get_folder_tree(folder_res.id)
+        child_names = [c.name for c in tree.children]
+        self.assertIn("subfolder", child_names)
+        self.assertNotIn(".cache", child_names)
+        self.assertNotIn("backend", child_names)
+
 if __name__ == "__main__":
     unittest.main()
+

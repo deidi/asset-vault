@@ -36,6 +36,60 @@ DOCUMENT_EXTENSIONS: Set[str] = {
 }
 SUPPORTED_EXTENSIONS: Set[str] = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS | AUDIO_EXTENSIONS | DOCUMENT_EXTENSIONS
 
+# Directories and paths that must never be scanned, indexed, or watched
+EXCLUDED_DIR_NAMES: Set[str] = {
+    ".cache", "cache",
+    ".git", ".github", ".vscode", ".agents", ".idea",
+    ".venv", "venv", "env", ".env", "__pycache__",
+    "node_modules",
+    "backend",
+    "frontend",
+    "public",
+    "storage",
+    "dist",
+    "build",
+    "tests",
+    "tasks",
+    "docs",
+    "system volume information",
+    "$recycle.bin",
+    "$recbin",
+}
+
+def is_excluded_dir_name(dir_name: str) -> bool:
+    """Returns True if the directory name matches system or internal application folders."""
+    if not dir_name:
+        return True
+    d = dir_name.strip().lower()
+    if d.startswith((".", "$")):
+        return True
+    return d in EXCLUDED_DIR_NAMES
+
+def is_excluded_path(path: str) -> bool:
+    """Returns True if any component of the file path is an excluded/internal directory or file."""
+    if not path:
+        return True
+    norm = os.path.normpath(path)
+    parts = norm.split(os.sep)
+
+    # Check each parent directory component
+    for part in parts[:-1]:
+        p = part.strip().lower()
+        if p.endswith(":"):  # Drive letter e.g. "C:"
+            continue
+        if p.startswith((".", "$")) or p in EXCLUDED_DIR_NAMES:
+            return True
+
+    # Check the final file or directory name
+    final_name = parts[-1].strip().lower()
+    if final_name.startswith((".", "~$")) or final_name.endswith((".tmp", ".crdownload", ".part", ".lock")):
+        return True
+    if os.path.isdir(norm) and (final_name.startswith((".", "$")) or final_name in EXCLUDED_DIR_NAMES):
+        return True
+
+    return False
+
+
 
 class FolderService:
     def __init__(self, db: Session):
@@ -172,30 +226,39 @@ class FolderService:
         already_indexed = 0
         errors: List[str] = []
 
+        # Clean up any previously indexed assets in this folder that match excluded paths
+        try:
+            existing_folder_assets = self.db.query(Asset).filter(Asset.folder_id == folder.id).all()
+            for a in existing_folder_assets:
+                if a.storage_path and is_excluded_path(a.storage_path):
+                    self.db.delete(a)
+            self.db.commit()
+        except Exception as e:
+            logger.warning(f"Error purging excluded assets for folder {folder.id}: {e}")
+
         # Find all media files
         file_paths: List[str] = []
         if folder.is_recursive:
             for root, dirs, filenames in os.walk(folder.path, followlinks=True):
                 # Exclude hidden, system, and unwanted directories from traversal
-                dirs[:] = [
-                    d for d in dirs 
-                    if not d.startswith((".", "$")) and d.lower() not in {"system volume information", "node_modules", ".git", "$recycle.bin"}
-                ]
+                dirs[:] = [d for d in dirs if not is_excluded_dir_name(d)]
                 for filename in filenames:
-                    if filename.startswith((".", "~$")):
+                    file_abs = os.path.normpath(os.path.join(root, filename))
+                    if is_excluded_path(file_abs):
                         continue
                     _, ext = os.path.splitext(filename)
                     if ext.lower() in SUPPORTED_EXTENSIONS:
-                        file_paths.append(os.path.normpath(os.path.join(root, filename)))
+                        file_paths.append(file_abs)
         else:
             try:
                 for entry in os.scandir(folder.path):
                     if entry.is_file():
-                        if entry.name.startswith((".", "~$")):
+                        entry_abs = os.path.normpath(entry.path)
+                        if is_excluded_path(entry_abs):
                             continue
                         _, ext = os.path.splitext(entry.name)
                         if ext.lower() in SUPPORTED_EXTENSIONS:
-                            file_paths.append(os.path.normpath(entry.path))
+                            file_paths.append(entry_abs)
             except Exception as e:
                 errors.append(f"Error scanning folder root: {str(e)}")
 
@@ -349,9 +412,8 @@ class FolderService:
                     subdirs = []
                     with os.scandir(norm_dir) as entries:
                         for entry in entries:
-                            if entry.is_dir():
-                                if not entry.name.startswith((".", "$")) and entry.name.lower() not in {"system volume information", "node_modules", ".git", "$recycle.bin"}:
-                                    subdirs.append(entry.name)
+                            if entry.is_dir() and not is_excluded_dir_name(entry.name):
+                                subdirs.append(entry.name)
                     subdirs.sort(key=lambda s: s.lower())
                     for sub in subdirs:
                         sub_abs = os.path.join(norm_dir, sub)

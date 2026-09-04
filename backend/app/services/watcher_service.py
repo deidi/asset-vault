@@ -16,7 +16,7 @@ from app.repositories.library_folder_repository import LibraryFolderRepository
 from app.repositories.asset_repository import AssetRepository
 from app.services.tag_service import TagService
 from app.services.connection_manager import manager
-from app.services.folder_service import SUPPORTED_EXTENSIONS
+from app.services.folder_service import SUPPORTED_EXTENSIONS, is_excluded_path
 
 logger = logging.getLogger("assetvault.watcher")
 
@@ -30,6 +30,8 @@ class LibraryEventHandler(FileSystemEventHandler):
         self._processed_timestamps: Dict[str, float] = {}
 
     def _is_supported(self, file_path: str) -> bool:
+        if is_excluded_path(file_path):
+            return False
         _, ext = os.path.splitext(file_path)
         return ext.lower() in SUPPORTED_EXTENSIONS
 
@@ -54,6 +56,8 @@ class LibraryEventHandler(FileSystemEventHandler):
     def on_created(self, event: FileSystemEvent) -> None:
         if event.is_directory:
             return
+        if is_excluded_path(event.src_path):
+            return
         if watcher_service.is_suppressed(event.src_path):
             return
         self._handle_file_created_or_modified(event.src_path, is_new=True)
@@ -61,12 +65,16 @@ class LibraryEventHandler(FileSystemEventHandler):
     def on_modified(self, event: FileSystemEvent) -> None:
         if event.is_directory:
             return
+        if is_excluded_path(event.src_path):
+            return
         if watcher_service.is_suppressed(event.src_path):
             return
         self._handle_file_created_or_modified(event.src_path, is_new=False)
 
     def on_moved(self, event: FileMovedEvent) -> None:
         if event.is_directory:
+            return
+        if is_excluded_path(event.src_path) and is_excluded_path(event.dest_path):
             return
         if watcher_service.is_suppressed(event.src_path) or watcher_service.is_suppressed(event.dest_path):
             return
@@ -139,6 +147,8 @@ class LibraryEventHandler(FileSystemEventHandler):
 
     def on_deleted(self, event: FileSystemEvent) -> None:
         if event.is_directory:
+            return
+        if is_excluded_path(event.src_path):
             return
         if watcher_service.is_suppressed(event.src_path):
             return
