@@ -193,14 +193,16 @@ class TestFolderAndExplorerService(unittest.TestCase):
         self.assertTrue(os.path.exists(expected_new_path))
 
     def test_excluded_paths_and_app_folders(self):
-        """Verify that internal app directories like .cache, backend, dist, node_modules are never scanned."""
+        """Verify that internal app directories like .cache, db, storage, node_modules are ignored while root media files scan properly."""
         from app.services.folder_service import is_excluded_path, is_excluded_dir_name
 
         self.assertTrue(is_excluded_dir_name(".cache"))
-        self.assertTrue(is_excluded_dir_name("backend"))
-        self.assertTrue(is_excluded_dir_name("dist"))
+        self.assertTrue(is_excluded_dir_name("cache"))
+        self.assertTrue(is_excluded_dir_name("db"))
+        self.assertTrue(is_excluded_dir_name("storage"))
         self.assertTrue(is_excluded_dir_name("node_modules"))
         self.assertFalse(is_excluded_dir_name("MyPhotos"))
+        self.assertFalse(is_excluded_dir_name("Renders"))
 
         # Create dummy internal directories inside the library folder
         cache_dir = os.path.join(self.temp_dir, ".cache", "thumbnails")
@@ -208,10 +210,15 @@ class TestFolderAndExplorerService(unittest.TestCase):
         with open(os.path.join(cache_dir, "thumb123.webp"), "wb") as f:
             f.write(b"fake thumb")
 
-        backend_dir = os.path.join(self.temp_dir, "backend", "db")
-        os.makedirs(backend_dir, exist_ok=True)
-        with open(os.path.join(backend_dir, "internal_logo.png"), "wb") as f:
-            f.write(b"fake internal logo")
+        db_dir = os.path.join(self.temp_dir, "db")
+        os.makedirs(db_dir, exist_ok=True)
+        with open(os.path.join(db_dir, "assetvault.sqlite"), "wb") as f:
+            f.write(b"fake sqlite db")
+
+        storage_dir = os.path.join(self.temp_dir, "storage")
+        os.makedirs(storage_dir, exist_ok=True)
+        with open(os.path.join(storage_dir, "internal_upload.png"), "wb") as f:
+            f.write(b"fake internal upload")
 
         folder_service = FolderService(self.db)
         asset_repo = AssetRepository(self.db)
@@ -223,16 +230,17 @@ class TestFolderAndExplorerService(unittest.TestCase):
         ))
 
         scan_res = folder_service.scan_folder(folder_res.id)
-        # Should only scan the 2 user files (banner.png, subfolder/clip.mp4), ignoring .cache/ and backend/
+        # Should only scan the 2 user files (root banner.png and subfolder/clip.mp4), ignoring .cache/, db/, and storage/
         self.assertEqual(scan_res.total_scanned, 2)
         self.assertEqual(scan_res.newly_indexed, 2)
 
-        # Check tree does not contain .cache or backend
+        # Check tree does not contain .cache, db, or storage
         tree = folder_service.get_folder_tree(folder_res.id)
         child_names = [c.name for c in tree.children]
         self.assertIn("subfolder", child_names)
         self.assertNotIn(".cache", child_names)
-        self.assertNotIn("backend", child_names)
+        self.assertNotIn("db", child_names)
+        self.assertNotIn("storage", child_names)
 
 if __name__ == "__main__":
     unittest.main()

@@ -36,28 +36,30 @@ DOCUMENT_EXTENSIONS: Set[str] = {
 }
 SUPPORTED_EXTENSIONS: Set[str] = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS | AUDIO_EXTENSIONS | DOCUMENT_EXTENSIONS
 
-# Directories and paths that must never be scanned, indexed, or watched
+# Directories and files that must be ignored to prevent feedback loops and indexing internal app state
 EXCLUDED_DIR_NAMES: Set[str] = {
     ".cache", "cache",
-    ".git", ".github", ".vscode", ".agents", ".idea",
-    ".venv", "venv", "env", ".env", "__pycache__",
-    "node_modules",
-    "backend",
-    "frontend",
-    "public",
+    "db",
     "storage",
-    "dist",
-    "build",
-    "tests",
-    "tasks",
-    "docs",
+    ".git", ".github", ".vscode", ".agents", ".idea",
+    ".venv", "venv", "env", "__pycache__",
+    "node_modules",
     "system volume information",
     "$recycle.bin",
     "$recbin",
 }
 
+EXCLUDED_FILENAMES: Set[str] = {
+    "assetvault.sqlite",
+    "assetvault.sqlite-wal",
+    "assetvault.sqlite-shm",
+    "settings.json",
+    "thumbs.db",
+    ".ds_store",
+}
+
 def is_excluded_dir_name(dir_name: str) -> bool:
-    """Returns True if the directory name matches system or internal application folders."""
+    """Returns True if the directory name matches internal app cache, db, storage or system folders."""
     if not dir_name:
         return True
     d = dir_name.strip().lower()
@@ -66,7 +68,7 @@ def is_excluded_dir_name(dir_name: str) -> bool:
     return d in EXCLUDED_DIR_NAMES
 
 def is_excluded_path(path: str) -> bool:
-    """Returns True if any component of the file path is an excluded/internal directory or file."""
+    """Returns True if the path is inside cache, db, storage, or internal/system files."""
     if not path:
         return True
     norm = os.path.normpath(path)
@@ -82,6 +84,8 @@ def is_excluded_path(path: str) -> bool:
 
     # Check the final file or directory name
     final_name = parts[-1].strip().lower()
+    if final_name in EXCLUDED_FILENAMES:
+        return True
     if final_name.startswith((".", "~$")) or final_name.endswith((".tmp", ".crdownload", ".part", ".lock")):
         return True
     if os.path.isdir(norm) and (final_name.startswith((".", "$")) or final_name in EXCLUDED_DIR_NAMES):
