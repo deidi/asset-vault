@@ -1,13 +1,26 @@
 # 🏛️ AssetVault
 
+> **Blazing-fast, lightweight digital asset manager for Windows with in-place multi-folder referencing, real-time background file watching, and native Windows Explorer integration.**
+
 [![AssetVault CI & Build](https://github.com/deidi/asset-vault/actions/workflows/ci.yml/badge.svg)](https://github.com/deidi/asset-vault/actions/workflows/ci.yml)
-![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-blue)
-![Architecture](https://img.shields.io/badge/architecture-Local--First%20%7C%20In--Place-emerald)
-![License](https://img.shields.io/badge/license-MIT-purple)
+[![GitHub Pages](https://img.shields.io/badge/website-Live%20Demo-blue?style=flat&logo=github)](https://deidi.github.io/asset-vault/)
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078D6?logo=windows)](https://github.com/deidi/asset-vault/releases/latest)
+[![Architecture](https://img.shields.io/badge/architecture-In--Place%20%7C%20Zero--Copy-emerald)](https://github.com/deidi/asset-vault)
+[![Privacy](https://img.shields.io/badge/privacy-100%25%20Offline%20%7C%20No%20Telemetry-success)](mds/privacy_policy.md)
+[![License](https://img.shields.io/badge/license-MIT-purple)](LICENSE)
 
-AssetVault is a production-quality, local-first asset management system built as a **Standalone Windows Desktop Application** with an **In-Place Multi-Folder Reference Engine**.
+**AssetVault** is a modern, standalone Windows desktop application designed for creative professionals, developers, 3D artists, videographers, and photographers who need to organize, preview, tag, and search large media collections **directly in their real folders on disk** without duplicating files or consuming extra storage.
 
-Original media files remain directly in their selected folders on disk. AssetVault provides instant indexing, real-time background file watching (`watchdog`), cached WebP thumbnail generation, rich media previewers (Images, Videos, Audio, PDFs), a collapsible Inspector panel with native Windows File Explorer integration, and flexible bulk management operations.
+### 🌟 Key Highlights:
+- 📁 **Zero-Copy In-Place Referencing**: Media stays in its original folders on local or network drives.
+- ⚡ **Native Windows Explorer Integration**: In-place rename on disk, reveal in Explorer (`explorer.exe /select`), and safe Recycle Bin trashing (`send2trash`).
+- 🔄 **Real-Time Watchdog & Live WebSockets**: Automatically detects file additions, renames, and deletions on disk and reconciles the SQLite database in real-time.
+- 🖼️ **High-Definition Thumbnail Engine**: Native Windows Shell video frame extraction, PDF rendering (`pypdfium2`), and fast Pillow image caching in WebP format.
+- 🔍 **Multi-Tag AND-Filtering**: Multi-tag queries, auto-tagging (`#ext`, `#filename`, `#year`, `#parent_folder`), and format filters (`Images`, `Videos`, `Audio`, `Documents`).
+- 🎬 **Full-Screen Interactive Previewer**: Deep zoom/pan/rotate image viewer, multi-speed HTML5 video player, audio waveform badges, and PDF document reader.
+- 🔒 **100% Offline & Private**: Zero cloud dependencies, zero analytics, zero telemetries.
+- 📦 **Single Portable Executable**: Standalone `AssetVault.exe` for Windows 10 & 11 with zero Python or Node.js prerequisites.
+
 
 ---
 
