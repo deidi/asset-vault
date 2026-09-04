@@ -28,20 +28,31 @@ d:\Projects\asset-vault/
 │   └── requirements.txt            # Python dependencies (FastAPI, SQLAlchemy, Pillow, send2trash, watchdog, pywebview)
 ├── dist/
 │   └── AssetVault.exe              # Self-contained standalone Windows executable
-├── docs/                           # API docs, architecture, roadmap, testing plan
+├── docs/                           # GitHub Pages static site & SEO assets
+│   ├── index.html                  # Landing page
+│   ├── favicon.png                 # Multi-resolution favicon & app icons
+│   ├── og-preview.jpg              # High-res social preview card
+│   ├── robots.txt                  # Search engine directives
+│   └── sitemap.xml                 # XML sitemap for search indexing
 ├── frontend/
 │   ├── src/
 │   │   ├── App.tsx                 # Main application containing layout, header, state
 │   │   ├── components/             # React UI components (Sidebar, MediaGrid, InspectorPanel, PreviewModal, etc.)
 │   │   └── main.tsx                # React client entrypoint with ErrorBoundary
 │   └── package.json                # Node.js dependencies & scripts
+├── mds/                            # Technical & system documentation
+│   ├── api.md                      # REST API specification
+│   ├── architecture.md             # System architecture & Clean Architecture layers
+│   ├── privacy_policy.md           # Privacy policy & offline assurance
+│   ├── roadmap.md                  # Milestone roadmap & slice progress
+│   └── testing_plan.md             # Testing strategy and automated test suites
 ├── public/                         # Built frontend SPA bundle served by FastAPI & PyWebView
 ├── storage/                        # Physical file storage directory for internal vault imports
 ├── tasks/
 │   ├── TASKS_SUMMARY.md            # Master task summary index
 │   └── archive/                    # Archived historical task logs (000 - 012)
-├── tests/                          # 22/22 passing automated test suite
-│   ├── run_tests.py                # Automated test runner (22 tests)
+├── tests/                          # 23/23 passing automated test suite
+│   ├── run_tests.py                # Automated test runner (23 tests)
 │   ├── test_asset_service.py       # AssetService & file type filter unit tests
 │   ├── test_api_routes.py          # REST API & file type integration tests
 │   ├── test_folder_and_explorer.py # Folder, tree counts, batch move & explorer unit tests
@@ -49,6 +60,7 @@ d:\Projects\asset-vault/
 │   ├── test_thumbnail_and_cache.py # Thumbnail generator & video thumbnail tests
 │   ├── test_watcher_service.py     # File watcher lifecycle & event tests
 │   └── test_ws_api.py              # WebSocket live sync tests
+├── version_info.txt                # Windows File Version metadata resource
 ├── build_desktop.py                # Standalone PyInstaller builder
 ├── desktop_app.py                  # PyWebView desktop launcher entrypoint
 └── run_desktop.bat                 # Batch launcher for Windows

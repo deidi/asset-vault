@@ -101,15 +101,18 @@ d:\Projects\asset-vault/
 │   │   │   └── settings.json       # Persistent storage and library configuration
 │   │   ├── models/                 # SQLAlchemy DB Models (Asset, Tag, AssetTag, LibraryFolder)
 │   │   ├── repositories/           # Data access layers (AssetRepo, TagRepo, LibraryFolderRepo)
-│   │   ├── routes/                 # FastAPI routes (asset, inventory, folder, explorer)
+│   │   ├── routes/                 # FastAPI routes (asset, inventory, folder, explorer, thumbnail, cache, ws)
 │   │   ├── schemas/                # Pydantic validation schemas
 │   │   └── services/               # Core business logic services
 │   └── requirements.txt            # Python backend dependencies
-├── docs/
-│   ├── api.md                      # Complete REST API reference
-│   ├── architecture.md             # This architecture & design system doc
-│   ├── roadmap.md                  # Release roadmap & phased slice breakdown
-│   └── testing_plan.md             # Testing strategy and test suite documentation
+├── dist/
+│   └── AssetVault.exe              # Standalone Windows desktop executable
+├── docs/                           # GitHub Pages static website & SEO assets
+│   ├── index.html                  # Landing page
+│   ├── favicon.png                 # Multi-resolution favicon & app icons
+│   ├── og-preview.jpg              # High-res social preview card
+│   ├── robots.txt                  # Search engine crawler directives
+│   └── sitemap.xml                 # XML sitemap for search indexing
 ├── frontend/
 │   ├── src/
 │   │   ├── App.tsx                 # Main React Application & SPA views
@@ -117,15 +120,27 @@ d:\Projects\asset-vault/
 │   │   └── main.tsx                # Client entrypoint
 │   ├── package.json                # Frontend dependencies
 │   └── vite.config.ts              # Vite bundle configuration
+├── mds/                            # Technical & system documentation
+│   ├── api.md                      # Complete REST API reference
+│   ├── architecture.md             # This architecture & design system doc
+│   ├── privacy_policy.md           # Privacy policy & offline assurance
+│   ├── roadmap.md                  # Release roadmap & phased slice breakdown
+│   └── testing_plan.md             # Testing strategy and test suite documentation
 ├── public/                         # Production SPA bundle served by FastAPI / PyWebView
 ├── storage/                        # Physical storage directory for internal vault uploads
 ├── tasks/
 │   ├── TASKS_SUMMARY.md            # Master development task summary
 │   └── archive/                    # Archived historical task logs
-└── tests/
-    ├── run_tests.py                # Automated Python test runner
-    ├── test_asset_service.py       # Unit tests for asset & tag logic
-    ├── test_api_routes.py          # Integration tests for core asset API routes
-    ├── test_folder_and_explorer.py # Unit tests for in-place folder & explorer actions
-    └── test_folder_and_explorer_api.py # Integration tests for folder & explorer endpoints
+├── tests/                          # Automated test suite (23/23 tests passing)
+│   ├── run_tests.py                # Automated Python test runner
+│   ├── test_asset_service.py       # Unit tests for asset & tag logic
+│   ├── test_api_routes.py          # Integration tests for core asset API routes
+│   ├── test_folder_and_explorer.py # Unit tests for in-place folder & explorer actions
+│   ├── test_folder_and_explorer_api.py # Integration tests for folder & explorer endpoints
+│   ├── test_thumbnail_and_cache.py # Unit & API tests for thumbnails & caching
+│   ├── test_watcher_service.py     # File watcher lifecycle & handler event tests
+│   └── test_ws_api.py              # WebSocket live sync tests
+├── version_info.txt                # Windows File Version metadata resource
+├── build_desktop.py                # Automated PyInstaller desktop packager
+└── desktop_app.py                  # Standalone desktop application entrypoint
 ```

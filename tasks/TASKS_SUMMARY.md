@@ -78,6 +78,33 @@
   - Enforced clean process and watcher shutdown hooks (`window.events.closed` + `atexit.register(watcher_service.stop_all)`).
   - Created PyInstaller spec `assetvault.spec` and automated build pipeline `build_desktop.py`.
 
+### Task 015: Desktop Refinement, Branding, SEO & Community Health Suite (Release v1.0.3)
+- **Selective Internal Folder Exclusion & Watcher Refinement**:
+  - Refined recursive folder scanner (`FolderService`) and background watcher (`WatcherService`) to selectively exclude internal app folders (`.cache/`, `db/`, `storage/`, `node_modules/`, `.git/`, `.venv/`) while scanning root-level media files properly.
+  - Added regression test `test_excluded_paths_and_app_folders` to `tests/test_folder_and_explorer.py`, expanding the test suite to 23/23 passing automated tests.
+- **Authentic App Favicon & Visual Identity**:
+  - Extracted multi-resolution icon frames (`16x16`, `32x32`, `256x256`, `apple-touch-icon`) from canonical `assetvault.ico`.
+  - Replaced SVG placeholder logos in GitHub Pages navbar and footer with authentic high-resolution application branding.
+- **Search Engine Optimization (SEO) & Google Indexing**:
+  - Generated `docs/robots.txt` and `docs/sitemap.xml` with canonical domain URL (`https://deidi.github.io/asset-vault/`).
+  - Added JSON-LD Schema.org `SoftwareApplication` structured metadata and Open Graph / Twitter Card social preview images (`docs/og-preview.jpg`).
+- **Documentation Architecture Reorganization**:
+  - Separated technical markdown documents (`api.md`, `architecture.md`, `roadmap.md`, `testing_plan.md`, `privacy_policy.md`) into dedicated `mds/` directory.
+  - Reserved `docs/` exclusively for GitHub Pages static site hosting and SEO assets.
+- **Privacy Policy & Offline Assurance**:
+  - Created formal privacy policy (`mds/privacy_policy.md`) highlighting 100% offline functionality, zero data collection, zero telemetry, and local-first architecture.
+  - Integrated interactive modal with keyboard navigation on both the desktop client and GitHub Pages site.
+- **GitHub Community Health Suite (100% Score)**:
+  - Added `CODE_OF_CONDUCT.md` (Contributor Covenant v2.1).
+  - Added `CONTRIBUTING.md` (Clean Architecture guidelines, PR workflow, testing standards).
+  - Added `SECURITY.md` (vulnerability disclosure policy).
+  - Added `.github/ISSUE_TEMPLATE/bug_report.md` & `feature_request.md`.
+  - Added `.github/PULL_REQUEST_TEMPLATE.md` and `CITATION.cff`.
+- **Packaging & Executable Versioning**:
+  - Added Windows File Version Info resource (`version_info.txt`) embedding company name, copyright, version (`1.0.0.0`), and file descriptions into `dist/AssetVault.exe`.
+  - Updated build pipeline `build_desktop.py` to compile version metadata directly into the standalone binary.
+  - Streamlined `README.md` to highlight one-click `AssetVault.exe` execution with zero prerequisites.
+
 ---
 
 ## 📁 Archived Historical Tasks

@@ -67,6 +67,17 @@ The overhaul has transformed AssetVault into a **high-performance standalone Win
 
 ---
 
+## 🌟 Milestone 2.2: Release v1.0.3 (Branding, SEO, Community Health & Refinements) - COMPLETED
+- **Selective Internal Folder Exclusion**: Fixed recursive scanner and watcher to explicitly ignore internal app folders (`.cache/`, `db/`, `storage/`, `node_modules/`, `.git/`, `.venv/`) while scanning root-level media files properly.
+- **Authentic App Icon & Branding System**: Extracted canonical multi-resolution favicon frames (`16x16`, `32x32`, `256x256`, `apple-touch-icon`) from `assetvault.ico` and unified across landing page navbar, footer, and web metadata.
+- **Google Search SEO & Social Cards**: Added `robots.txt`, `sitemap.xml`, Schema.org structured data, and Open Graph social preview cards (`og-preview.jpg`).
+- **Privacy Policy & Local-First Assurance**: Authored formal `mds/privacy_policy.md` and integrated interactive modal dialog into desktop and web clients.
+- **GitHub Community Health Suite (100% Score)**: Configured full open-source governance suite (`CODE_OF_CONDUCT.md`, `CONTRIBUTING.md`, `SECURITY.md`, issue/PR templates, `CITATION.cff`).
+- **Windows Executable Version Info Resource**: Integrated `version_info.txt` compiling Windows File Version metadata (`1.0.0.0`) directly into `dist/AssetVault.exe`.
+- **Documentation Architecture Reorganization**: Relocated technical markdown files to `mds/` to keep `docs/` dedicated to GitHub Pages.
+
+---
+
 ## 🔮 Milestone 3: Future Enhancements (v1.2.0+)
 - AI-based local semantic tagging (CLIP/BLIP local vision models running offline on ONNX/DirectML).
 - Duplicate and near-duplicate visual media detection (perceptual hashing).

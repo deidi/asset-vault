@@ -23,10 +23,10 @@ Test files are located in the `tests/` directory:
 
 ```
 AssetVault/
-├── docs/
+├── mds/
 │   └── testing_plan.md                 # This comprehensive testing plan
 └── tests/
-    ├── run_tests.py                    # Automated test runner script (22 tests)
+    ├── run_tests.py                    # Automated test runner script (23 tests)
     ├── test_asset_service.py           # Unit tests for asset, tags, and file type filters
     ├── test_api_routes.py              # Integration tests for core asset REST routes
     ├── test_folder_and_explorer.py     # Unit tests for folders, tree counts, moves & explorer
@@ -42,6 +42,7 @@ AssetVault/
 
 ### 1. In-Place Folder & Explorer Service Unit Tests (`tests/test_folder_and_explorer.py`)
 - **Multi-Folder Registration & Scanning**: Verifies adding library folders, recursive vs flat scanning, media file type filtering, and auto-tag generation (`#png`, `#filename`, `#year`, `#custom_tag`).
+- **Selective Internal Folder Exclusion**: Verifies that internal app directories like `.cache/`, `db/`, `storage/`, `node_modules/`, `.git/`, `.venv/` are selectively ignored while root media files scan properly (`test_excluded_paths_and_app_folders`).
 - **Idempotent Scanning**: Verifies that re-scanning an already indexed folder updates stats without duplicating records.
 - **In-Place Disk Rename**: Verifies atomic `os.replace` rename on disk, database path synchronization, and `#filename` protected tag migration.
 - **Batch Move Operations**: Verifies moving multiple files between directories on disk with collision resolution (`test_batch_move_assets`).
@@ -80,7 +81,7 @@ AssetVault/
 ## 🚀 Running the Tests
 
 ### Command Line Execution
-Run all 22 unit and integration tests using the Python virtual environment:
+Run all 23 unit and integration tests using the Python virtual environment:
 
 ```powershell
 # From the project root directory
@@ -94,7 +95,7 @@ Run all 22 unit and integration tests using the Python virtual environment:
 ==================================================
 ...
 ----------------------------------------------------------------------
-Ran 22 tests in 1.250s
+Ran 23 tests in 1.350s
 
 OK
 ==================================================
@@ -102,7 +103,7 @@ OK
 ==================================================
 
 Test Summary:
-  Total Run : 22
+  Total Run : 23
   Failures  : 0
   Errors    : 0
 ```
