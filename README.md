@@ -8,6 +8,7 @@
 [![Architecture](https://img.shields.io/badge/architecture-In--Place%20%7C%20Zero--Copy-emerald)](https://github.com/deidi/asset-vault)
 [![Privacy](https://img.shields.io/badge/privacy-100%25%20Offline%20%7C%20No%20Telemetry-success)](mds/privacy_policy.md)
 [![License](https://img.shields.io/badge/license-MIT-purple)](LICENSE)
+[![Changelog](https://img.shields.io/badge/changelog-v1.1.0-orange)](CHANGELOG.md)
 
 **AssetVault** is a modern, standalone Windows desktop application designed for creative professionals, developers, 3D artists, videographers, and photographers who need to organize, preview, tag, and search large media collections **directly in their real folders on disk** without duplicating files or consuming extra storage.
 

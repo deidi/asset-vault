@@ -127,6 +127,17 @@
 
 ---
 
+### [Task 017: Changelog System & Historical Release Documentation](file:///d:/Projects/asset-vault/CHANGELOG.md)
+- **Status**: Completed (2026-09-05)
+- **Scope**:
+  - Established formal root [CHANGELOG.md](file:///d:/Projects/asset-vault/CHANGELOG.md) following the Keep a Changelog standard and Semantic Versioning.
+  - Documented initial foundational desktop application release (`v1.0.0`) and subsequent maintenance patches (`v1.0.1`, `v1.0.2`, `v1.0.3`).
+  - Documented major performance and feature overhaul release (`v1.1.0`) including dedicated Other Files tab, 9,000+ asset scanner, smart move reconciliation, and progressive grid rendering.
+  - Added official Changelog badge to root `README.md`.
+
+---
+
 ## 📁 Archived Historical Tasks
 Step-by-step milestone logs are preserved in [`tasks/archive/`](file:///d:/Projects/asset-vault/tasks/archive/):
 - `tasks/archive/000_setup.md` through `011_testing_suite.md`.
+
