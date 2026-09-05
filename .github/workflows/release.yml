@@ -61,6 +61,7 @@ jobs:
             #### 🚀 Highlights & Features:
             - **Portable Executable**: Standalone `AssetVault.exe` for Windows 10 & 11 (zero Python/Node prerequisites).
             - **Dedicated "Other Files" Tab**: Complete support for non-media assets (`.zip`, `.blend`, `.exe`, `.py`, `.iso`, `.json`, `.obj`, etc.) in a dedicated tab with custom format badge thumbnails, keeping the media grid clean.
+            - **User-Configurable Category File Types**: Manually map and customize file extensions for Documents, Images, Videos, and Audio via UI settings modal with live database re-classification.
             - **High-Performance Scanning Engine**: Optimized library scanner processing 9,000+ assets in under 10 seconds (>1,000 files/sec) with lazy thumbnailing and batched commits.
             - **Smart In-Place Move Reconciliation**: Automatically detects externally moved files by name & size, preserving tags, UUIDs, and metadata without re-importing.
             - **Automatic Orphan Purge**: Automatically cleans up database records for missing or externally removed files during library scans.
