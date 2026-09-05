@@ -14,6 +14,8 @@ from app.routes.folder_routes import router as folder_router
 from app.routes.explorer_routes import router as explorer_router
 from app.routes.ws_routes import router as ws_router
 from app.routes.thumbnail_routes import router as thumbnail_router
+from app.routes.settings_routes import router as settings_router
+from app.services.category_service import CategoryService
 from app.services.watcher_service import watcher_service
 from app.services.connection_manager import manager
 from app.db.session import engine, Base, init_db, SessionLocal
@@ -28,6 +30,10 @@ logger = logging.getLogger("assetvault")
 # Initialize and auto-migrate SQLite tables on startup
 init_db(engine)
 logger.info("Database schema initialized and verified.")
+
+# Initialize dynamic category extensions
+CategoryService.initialize()
+logger.info("Category extensions initialized.")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -94,6 +100,7 @@ app.include_router(folder_router, prefix="/api")
 app.include_router(explorer_router, prefix="/api")
 app.include_router(ws_router, prefix="/api")
 app.include_router(thumbnail_router, prefix="/api")
+app.include_router(settings_router, prefix="/api")
 
 # Resolve absolute path to the public directory
 def resolve_public_dir() -> str:

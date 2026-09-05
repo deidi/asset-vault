@@ -137,6 +137,20 @@
 
 ---
 
+### [Task 018: User-Configurable Category File Types & Filters](file:///d:/Projects/asset-vault/backend/app/services/category_service.py)
+- **Status**: Completed (2026-09-05)
+- **Scope**:
+  - Implemented `CategoryService` managing active and default file extension mappings for `image`, `video`, `audio`, and `document` categories with persistent storage in `settings.json`.
+  - Added live database re-classification (`recategorize_assets`) that updates existing records across the library when extension mappings change without requiring full re-scans.
+  - Implemented REST API routes (`GET /api/settings/file-types`, `PUT /api/settings/file-types`, `POST /api/settings/file-types/reset`) with Pydantic request/response schemas.
+  - Synchronized active extensions across `folder_service.py` categorization and `thumbnail_service.py` dispatchers.
+  - Created `FileTypeSettingsModal.tsx` allowing users to view, search, add, remove, and reset file extensions per category with instant collision auto-transfer.
+  - Added entry points in the Sub-Header Filter Bar ("Configure Types") and the Left Sidebar ("File Types").
+  - Added 6 automated tests in `tests/test_category_settings.py` bringing the total suite to 31/31 passing tests.
+  - Rebuilt and repackaged `dist/AssetVault.exe` with updated hidden imports.
+
+---
+
 ## 📁 Archived Historical Tasks
 Step-by-step milestone logs are preserved in [`tasks/archive/`](file:///d:/Projects/asset-vault/tasks/archive/):
 - `tasks/archive/000_setup.md` through `011_testing_suite.md`.

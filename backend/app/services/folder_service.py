@@ -22,19 +22,13 @@ from app.schemas.library_folder import (
 
 logger = logging.getLogger("assetvault.folder_service")
 
-# Supported media extensions bundle
-IMAGE_EXTENSIONS: Set[str] = {
-    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".tiff", ".ico", ".jfif"
-}
-VIDEO_EXTENSIONS: Set[str] = {
-    ".mp4", ".webm", ".mov", ".mkv", ".avi", ".wmv", ".flv", ".m4v"
-}
-AUDIO_EXTENSIONS: Set[str] = {
-    ".mp3", ".wav", ".ogg", ".flac", ".m4a", ".aac", ".wma"
-}
-DOCUMENT_EXTENSIONS: Set[str] = {
-    ".pdf", ".txt", ".doc", ".docx", ".rtf", ".md", ".csv", ".xls", ".xlsx", ".ppt", ".pptx"
-}
+from app.services.category_service import CategoryService, DEFAULT_CATEGORY_EXTENSIONS
+
+# Supported media extensions bundle (defaults, kept updated by CategoryService)
+IMAGE_EXTENSIONS: Set[str] = set(DEFAULT_CATEGORY_EXTENSIONS["image"])
+VIDEO_EXTENSIONS: Set[str] = set(DEFAULT_CATEGORY_EXTENSIONS["video"])
+AUDIO_EXTENSIONS: Set[str] = set(DEFAULT_CATEGORY_EXTENSIONS["audio"])
+DOCUMENT_EXTENSIONS: Set[str] = set(DEFAULT_CATEGORY_EXTENSIONS["document"])
 MEDIA_EXTENSIONS: Set[str] = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS | AUDIO_EXTENSIONS | DOCUMENT_EXTENSIONS
 SUPPORTED_EXTENSIONS: Set[str] = MEDIA_EXTENSIONS
 
@@ -44,14 +38,20 @@ def categorize_file(path_or_name: str, mime_type: Optional[str] = None) -> str:
     clean_ext = ext.lower()
     clean_mime = (mime_type or "").lower()
 
-    if clean_ext in IMAGE_EXTENSIONS or clean_mime.startswith("image/"):
+    active = CategoryService.get_active_extensions()
+    img_exts = active.get("image", IMAGE_EXTENSIONS)
+    vid_exts = active.get("video", VIDEO_EXTENSIONS)
+    aud_exts = active.get("audio", AUDIO_EXTENSIONS)
+    doc_exts = active.get("document", DOCUMENT_EXTENSIONS)
+
+    if clean_ext in img_exts or clean_mime.startswith("image/"):
         return "image"
-    if clean_ext in VIDEO_EXTENSIONS or clean_mime.startswith("video/"):
+    if clean_ext in vid_exts or clean_mime.startswith("video/"):
         return "video"
-    if clean_ext in AUDIO_EXTENSIONS or clean_mime.startswith("audio/"):
+    if clean_ext in aud_exts or clean_mime.startswith("audio/"):
         return "audio"
     if (
-        clean_ext in DOCUMENT_EXTENSIONS
+        clean_ext in doc_exts
         or "pdf" in clean_mime
         or "document" in clean_mime
         or clean_mime.startswith("text/")

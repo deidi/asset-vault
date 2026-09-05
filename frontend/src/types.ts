@@ -73,3 +73,28 @@ export interface WebSocketEvent {
   event: 'file_added' | 'file_modified' | 'file_renamed' | 'file_deleted' | 'folder_scanned';
   data: any;
 }
+
+export interface CategoryExtensionsMap {
+  image: string[];
+  video: string[];
+  audio: string[];
+  document: string[];
+  [key: string]: string[];
+}
+
+export interface FileTypeSettingsResponse {
+  categories: CategoryExtensionsMap;
+  defaults: CategoryExtensionsMap;
+  counts: Record<string, number>;
+}
+
+export interface UpdateFileTypeSettingsRequest {
+  categories: CategoryExtensionsMap;
+  recategorize_existing?: boolean;
+}
+
+export interface UpdateFileTypeSettingsResponse {
+  status: string;
+  categories: CategoryExtensionsMap;
+  recategorized_count: number;
+}

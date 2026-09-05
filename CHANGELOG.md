@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Dynamic Format Badges**: Generates dark-slate uppercase format badge thumbnails for non-media files (`ZIP`, `BLEND`, `EXE`, `PY`, etc.) with packaging format icons.
 - **Smart Move Reconciliation**: Scanner and live watchers automatically detect files moved or renamed externally outside the app by matching `(name, size_bytes)` in-place, updating paths without losing custom tags, UUIDs, or metadata.
 - **Automatic Orphan Purging**: Missing or externally deleted library records are cleanly removed from the database during folder scans (`orphans_purged`).
+- **User-Configurable Category File Types**: Ability to manually customize and add file extension mappings for each filtering category (**Documents**, **Images**, **Videos**, and **Audio**) in case an associated format is missed (e.g. `.heic`, `.raw`, `.mkv`, `.epub`). Includes a dedicated settings modal with chip tags, instant collision auto-transfer, and automated live re-classification of existing library assets.
 - **Database Index Architecture**: Added B-Tree indexes on `storage_path`, `folder_id`, `category`, `created_at`, `name`, and `mime_type` with auto-migration and startup backfill.
 
 ### Performance & Optimizations

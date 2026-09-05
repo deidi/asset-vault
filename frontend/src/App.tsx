@@ -16,7 +16,8 @@ import {
   Film,
   Music,
   FileText,
-  Package
+  Package,
+  SlidersHorizontal
 } from 'lucide-react';
 import type { Asset, LibraryFolder, WebSocketEvent } from './types';
 import { fetchAssets, fetchFolders } from './api';
@@ -28,6 +29,7 @@ import { BulkActionsBar } from './components/BulkActionsBar';
 import { PreviewModal } from './components/PreviewModal';
 import { AddFolderModal } from './components/AddFolderModal';
 import { CacheManagerModal } from './components/CacheManagerModal';
+import { FileTypeSettingsModal } from './components/FileTypeSettingsModal';
 
 export const App: React.FC = () => {
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -49,6 +51,7 @@ export const App: React.FC = () => {
   const [previewModalAsset, setPreviewModalAsset] = useState<Asset | null>(null);
   const [isAddFolderOpen, setIsAddFolderOpen] = useState(false);
   const [isCacheManagerOpen, setIsCacheManagerOpen] = useState(false);
+  const [isFileTypeSettingsOpen, setIsFileTypeSettingsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [totalCount, setTotalCount] = useState<number>(0);
 
@@ -236,6 +239,7 @@ export const App: React.FC = () => {
         }}
         onOpenAddFolder={() => setIsAddFolderOpen(true)}
         onOpenCacheManager={() => setIsCacheManagerOpen(true)}
+        onOpenFileTypes={() => setIsFileTypeSettingsOpen(true)}
         onRefreshLibrary={loadLibrary}
         availableTags={availableTags}
         selectedTags={selectedTags}
@@ -388,16 +392,27 @@ export const App: React.FC = () => {
             })}
           </div>
 
-          {selectedFileType !== 'all' && (
+          <div className="flex items-center space-x-2 shrink-0">
+            {selectedFileType !== 'all' && (
+              <button
+                onClick={() => setSelectedFileType('all')}
+                className="text-[11px] text-slate-400 hover:text-slate-200 flex items-center space-x-1 px-2 py-0.5 rounded-lg hover:bg-slate-800/60 transition-colors cursor-pointer"
+                title="Reset file type filter"
+              >
+                <span>Reset filter</span>
+                <X className="w-3 h-3" />
+              </button>
+            )}
+
             <button
-              onClick={() => setSelectedFileType('all')}
-              className="text-[11px] text-slate-400 hover:text-slate-200 flex items-center space-x-1 px-2 py-0.5 rounded-lg hover:bg-slate-800/60 transition-colors cursor-pointer shrink-0"
-              title="Reset file type filter"
+              onClick={() => setIsFileTypeSettingsOpen(true)}
+              className="text-[11px] text-slate-400 hover:text-slate-200 flex items-center space-x-1.5 px-2.5 py-1 rounded-lg hover:bg-slate-800/80 border border-slate-700/50 hover:border-slate-600 transition-all cursor-pointer"
+              title="Configure Category File Types"
             >
-              <span>Reset filter</span>
-              <X className="w-3 h-3" />
+              <SlidersHorizontal className="w-3.5 h-3.5 text-slate-400" />
+              <span>Configure Types</span>
             </button>
-          )}
+          </div>
         </div>
 
         {/* Media Grid Canvas */}
@@ -492,6 +507,12 @@ export const App: React.FC = () => {
         isOpen={isCacheManagerOpen}
         onClose={() => setIsCacheManagerOpen(false)}
         onRefreshLibrary={loadLibrary}
+      />
+
+      <FileTypeSettingsModal
+        isOpen={isFileTypeSettingsOpen}
+        onClose={() => setIsFileTypeSettingsOpen(false)}
+        onSaved={loadLibrary}
       />
     </div>
   );

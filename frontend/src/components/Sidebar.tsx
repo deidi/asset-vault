@@ -10,6 +10,7 @@ import {
   ChevronRight,
   ChevronDown,
   Layers,
+  SlidersHorizontal,
   FolderTree as FolderTreeIcon
 } from 'lucide-react';
 import type { LibraryFolder, FolderTreeNode } from '../types';
@@ -23,6 +24,7 @@ interface SidebarProps {
   onSelectFolder: (folderId: string | null, subfolderPath?: string | null) => void;
   onOpenAddFolder: () => void;
   onOpenCacheManager: () => void;
+  onOpenFileTypes?: () => void;
   onRefreshLibrary: () => void;
   availableTags: string[];
   selectedTags: string[];
@@ -124,6 +126,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectFolder,
   onOpenAddFolder,
   onOpenCacheManager,
+  onOpenFileTypes,
   onRefreshLibrary,
   availableTags,
   selectedTags,
@@ -473,14 +476,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Sidebar Footer */}
-      <div className="p-3 border-t border-slate-800 bg-slate-950/40 flex items-center justify-between text-xs text-slate-400">
+      <div className="p-2.5 border-t border-slate-800/80 bg-slate-950/40 flex items-center justify-between text-xs text-slate-400 gap-1.5">
         <button
           onClick={onOpenCacheManager}
-          className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg hover:bg-slate-800/60 hover:text-slate-200 transition-colors w-full"
+          className="flex items-center justify-center space-x-1.5 px-2 py-1.5 rounded-lg hover:bg-slate-800/60 hover:text-slate-200 transition-colors flex-1 text-[11px] cursor-pointer"
+          title="Manage Storage and Thumbnail Cache"
         >
-          <Database className="w-3.5 h-3.5 text-blue-400" />
-          <span>Storage & Cache</span>
+          <Database className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+          <span className="truncate">Cache</span>
         </button>
+
+        {onOpenFileTypes && (
+          <button
+            onClick={onOpenFileTypes}
+            className="flex items-center justify-center space-x-1.5 px-2 py-1.5 rounded-lg hover:bg-slate-800/60 hover:text-slate-200 transition-colors flex-1 text-[11px] cursor-pointer"
+            title="Configure Category File Types"
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span className="truncate">File Types</span>
+          </button>
+        )}
       </div>
     </aside>
   );

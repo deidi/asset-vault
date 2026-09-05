@@ -85,23 +85,30 @@ class ThumbnailService:
         clean_ext = ext.lower()
 
         try:
+            from app.services.category_service import CategoryService
+            active = CategoryService.get_active_extensions()
+            img_exts = active.get("image", IMAGE_EXTENSIONS)
+            doc_exts = active.get("document", DOCUMENT_EXTENSIONS)
+            vid_exts = active.get("video", VIDEO_EXTENSIONS)
+            aud_exts = active.get("audio", AUDIO_EXTENSIONS)
+
             # 1. Image Formats
-            if clean_ext in IMAGE_EXTENSIONS:
+            if clean_ext in img_exts:
                 return self._render_image_thumbnail(norm_source, output_path, width, height)
 
             # 2. PDF Documents
-            elif clean_ext in DOCUMENT_EXTENSIONS:
+            elif clean_ext in doc_exts:
                 return self._render_pdf_thumbnail(norm_source, output_path, width, height)
 
             # 3. Video Formats
-            elif clean_ext in VIDEO_EXTENSIONS:
+            elif clean_ext in vid_exts:
                 return self._render_video_thumbnail(norm_source, output_path, width, height)
 
             # 4. Audio Formats
-            elif clean_ext in AUDIO_EXTENSIONS:
+            elif clean_ext in aud_exts:
                 return self._render_audio_thumbnail(norm_source, output_path, width, height)
 
-            # 5. Default Fallback Badge for non-media files
+            # 5. Default Fallback Badge for non-media or unrendered files
             else:
                 label = clean_ext.lstrip(".").upper()[:6] if clean_ext else "FILE"
                 return self._render_generic_badge(norm_source, output_path, width, height, label=label, bg_color=(30, 41, 59))

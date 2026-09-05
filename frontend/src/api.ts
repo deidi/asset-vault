@@ -1,4 +1,14 @@
-import type { Asset, LibraryFolder, FolderTreeNode, InventoryResponse, FolderScanResult, CacheStats } from './types';
+import type {
+  Asset,
+  LibraryFolder,
+  FolderTreeNode,
+  InventoryResponse,
+  FolderScanResult,
+  CacheStats,
+  FileTypeSettingsResponse,
+  CategoryExtensionsMap,
+  UpdateFileTypeSettingsResponse
+} from './types';
 
 const API_BASE = '/api';
 
@@ -222,3 +232,40 @@ export function getThumbnailUrl(assetId: string, width = 350, height = 350): str
 export function getMediaFileUrl(assetId: string): string {
   return `${API_BASE}/assets/${assetId}/download`;
 }
+
+export async function getFileTypeSettings(): Promise<FileTypeSettingsResponse> {
+  const res = await fetch(`${API_BASE}/settings/file-types`);
+  if (!res.ok) throw new Error('Failed to fetch file type settings');
+  return res.json();
+}
+
+export async function updateFileTypeSettings(
+  categories: CategoryExtensionsMap,
+  recategorizeExisting = true
+): Promise<UpdateFileTypeSettingsResponse> {
+  const res = await fetch(`${API_BASE}/settings/file-types`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      categories,
+      recategorize_existing: recategorizeExisting,
+    }),
+  });
+  if (!res.ok) throw new Error('Failed to save file type settings');
+  return res.json();
+}
+
+export async function resetFileTypeSettings(
+  recategorizeExisting = true
+): Promise<UpdateFileTypeSettingsResponse> {
+  const res = await fetch(`${API_BASE}/settings/file-types/reset`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      recategorize_existing: recategorizeExisting,
+    }),
+  });
+  if (!res.ok) throw new Error('Failed to reset file type settings');
+  return res.json();
+}
+
