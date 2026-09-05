@@ -5,6 +5,7 @@ from app.models.tag import Tag
 from app.models.library_folder import LibraryFolder
 from app.repositories.asset_repository import AssetRepository
 from app.services.tag_service import TagService
+from app.services.folder_service import categorize_file
 from app.schemas.asset import AssetCreate, AssetUpdate
 from typing import List, Optional, Union
 from datetime import datetime
@@ -210,6 +211,7 @@ class AssetService:
             "storage_path": asset_data.storagePath if asset_data.storagePath else "",
             "description": asset_data.description if asset_data.description else None,
             "folder_id": folder_id,
+            "category": getattr(asset_data, "category", None) or categorize_file(filename, getattr(asset_data, "mimeType", None)),
             "tags": tag_objects
         }
         
@@ -283,6 +285,7 @@ class AssetService:
             "size_bytes": size_bytes,
             "storage_path": f"storage/{disk_filename}",
             "description": description if description else f"SHA256: {sha256_hash}",
+            "category": categorize_file(asset_name, mime_type),
             "tags": tag_objects
         }
         
@@ -526,52 +529,42 @@ class AssetService:
 
         if file_type and file_type.strip():
             ft = file_type.strip().lower()
-            if ft in ("image", "images"):
+            if ft in ("all", "all files"):
+                # "All Files" represents the media library; strictly exclude non-media ('other')
                 query = query.filter(
                     or_(
-                        Asset.mime_type.ilike("image/%"),
-                        Asset.name.ilike("%.png"),
-                        Asset.name.ilike("%.jpg"),
-                        Asset.name.ilike("%.jpeg"),
-                        Asset.name.ilike("%.gif"),
-                        Asset.name.ilike("%.webp"),
-                        Asset.name.ilike("%.svg"),
-                        Asset.name.ilike("%.bmp"),
-                        Asset.name.ilike("%.tiff"),
-                        Asset.name.ilike("%.ico"),
-                        Asset.name.ilike("%.jfif")
+                        Asset.category.in_(["image", "video", "audio", "document"]),
+                        Asset.category == None
+                    )
+                )
+            elif ft in ("other", "others", "non-media"):
+                # "Other Files" tab: shows ONLY non-media files
+                query = query.filter(Asset.category == "other")
+            elif ft in ("image", "images"):
+                query = query.filter(
+                    or_(
+                        Asset.category == "image",
+                        Asset.mime_type.ilike("image/%")
                     )
                 )
             elif ft in ("video", "videos"):
                 query = query.filter(
                     or_(
-                        Asset.mime_type.ilike("video/%"),
-                        Asset.name.ilike("%.mp4"),
-                        Asset.name.ilike("%.webm"),
-                        Asset.name.ilike("%.mov"),
-                        Asset.name.ilike("%.mkv"),
-                        Asset.name.ilike("%.avi"),
-                        Asset.name.ilike("%.wmv"),
-                        Asset.name.ilike("%.flv"),
-                        Asset.name.ilike("%.m4v")
+                        Asset.category == "video",
+                        Asset.mime_type.ilike("video/%")
                     )
                 )
             elif ft in ("audio", "music"):
                 query = query.filter(
                     or_(
-                        Asset.mime_type.ilike("audio/%"),
-                        Asset.name.ilike("%.mp3"),
-                        Asset.name.ilike("%.wav"),
-                        Asset.name.ilike("%.ogg"),
-                        Asset.name.ilike("%.flac"),
-                        Asset.name.ilike("%.m4a"),
-                        Asset.name.ilike("%.aac"),
-                        Asset.name.ilike("%.wma")
+                        Asset.category == "audio",
+                        Asset.mime_type.ilike("audio/%")
                     )
                 )
             elif ft in ("document", "documents", "pdf"):
                 query = query.filter(
                     or_(
+                        Asset.category == "document",
                         Asset.mime_type.ilike("%pdf%"),
                         Asset.mime_type.ilike("%document%"),
                         Asset.mime_type.ilike("%text%"),
@@ -581,7 +574,7 @@ class AssetService:
                         Asset.name.ilike("%.docx")
                     )
                 )
-            elif ft != "all":
+            else:
                 ext = ft.lstrip(".")
                 query = query.filter(
                     or_(
@@ -589,6 +582,14 @@ class AssetService:
                         Asset.mime_type.ilike(f"%{ft}%")
                     )
                 )
+        else:
+            # Default when file_type is omitted: exclude 'other' (non-media)
+            query = query.filter(
+                or_(
+                    Asset.category.in_(["image", "video", "audio", "document"]),
+                    Asset.category == None
+                )
+            )
 
         if tags:
             tag_inputs = tags if isinstance(tags, list) else [tags]

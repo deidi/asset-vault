@@ -9,16 +9,17 @@ class Asset(Base):
     __tablename__ = "files"
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    name = Column(String, nullable=False)
+    name = Column(String, nullable=False, index=True)
     original_name = Column(String, nullable=False)
-    mime_type = Column(String, nullable=True)
+    mime_type = Column(String, nullable=True, index=True)
     size_bytes = Column(Integer, nullable=True)
-    storage_path = Column(String, nullable=True)
+    storage_path = Column(String, nullable=True, index=True)
     description = Column(String, nullable=True)
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    category = Column(String(32), nullable=True, index=True)
     
     # In-place library & media management additions
-    folder_id = Column(String(36), ForeignKey("library_folders.id", ondelete="SET NULL"), nullable=True)
+    folder_id = Column(String(36), ForeignKey("library_folders.id", ondelete="SET NULL"), nullable=True, index=True)
     file_modified_at = Column(DateTime, nullable=True)
     file_hash = Column(String, nullable=True)
     thumbnail_path = Column(String, nullable=True)

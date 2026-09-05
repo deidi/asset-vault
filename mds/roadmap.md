@@ -78,7 +78,18 @@ The overhaul has transformed AssetVault into a **high-performance standalone Win
 
 ---
 
+## ⚡ Milestone 2.3: Release v1.1.0 (High-Performance 9,000+ Asset Scanner & "Other Files" Support) - COMPLETED
+- **Dedicated "Other Files" Tab**: Complete support for non-media assets (`.zip`, `.blend`, `.exe`, `.py`, `.iso`, `.json`, `.obj`, `.blend`, etc.) in a dedicated tab with custom format badge thumbnails and packaging icons, keeping the media "All Files" tab clutter-free.
+- **Ultra-Fast Library Scanner (9,000+ Assets in Seconds)**: Redesigned scanning pipeline with decoupled thumbnail generation (on-demand lazy thumbnail loading), memory lookup sets, pre-cached tags, and 500-item batched SQLite commits, slashing 9,000 asset scan times from ~1 hour down to under 10 seconds (>1,000 files/sec).
+- **Smart In-Place Move Reconciliation**: Scanners and watchers automatically detect moved files outside the app by matching `(name, size_bytes)` in-place, updating paths instantly without losing custom tags, UUIDs, or metadata.
+- **Automatic Orphan Purge**: Cleanly purges database records for missing or externally removed library files during folder scans.
+- **O(1) Frontend Virtual Grid Optimizations**: Optimized selection lookups via `Set` and implemented progressive chunk rendering to eliminate browser DOM freezing with 9,000+ displayed items.
+- **Indexed Database Architecture**: Added B-Tree indexes on `storage_path`, `folder_id`, `category`, `created_at`, `name`, and `mime_type` with automated startup backfill and migration.
+
+---
+
 ## 🔮 Milestone 3: Future Enhancements (v1.2.0+)
 - AI-based local semantic tagging (CLIP/BLIP local vision models running offline on ONNX/DirectML).
 - Duplicate and near-duplicate visual media detection (perceptual hashing).
 - EXIF GPS geotagging & interactive offline map explorer.
+

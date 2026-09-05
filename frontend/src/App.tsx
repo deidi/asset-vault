@@ -15,7 +15,8 @@ import {
   Image as ImageIcon,
   Film,
   Music,
-  FileText
+  FileText,
+  Package
 } from 'lucide-react';
 import type { Asset, LibraryFolder, WebSocketEvent } from './types';
 import { fetchAssets, fetchFolders } from './api';
@@ -66,7 +67,7 @@ export const App: React.FC = () => {
         folderId: selectedFolderId || undefined,
         subfolderPath: selectedSubfolderPath || undefined,
         tags: selectedTags.length > 0 ? selectedTags : undefined,
-        fileType: selectedFileType !== 'all' ? selectedFileType : undefined,
+        fileType: selectedFileType,
         sortBy,
         sortOrder,
       });
@@ -206,6 +207,7 @@ export const App: React.FC = () => {
     { value: 'video', label: 'Videos', icon: Film, activeColor: 'text-indigo-400' },
     { value: 'audio', label: 'Audio', icon: Music, activeColor: 'text-emerald-400' },
     { value: 'document', label: 'Documents', icon: FileText, activeColor: 'text-rose-400' },
+    { value: 'other', label: 'Other Files', icon: Package, activeColor: 'text-amber-400' },
   ], []);
 
   const activeFolderName = useMemo(() => {

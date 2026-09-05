@@ -47,6 +47,49 @@ def init_db(target_engine=None):
                 if "thumbnail_path" not in existing_columns:
                     conn.execute(text("ALTER TABLE files ADD COLUMN thumbnail_path VARCHAR"))
                     logger.info("Migrated schema: Added files.thumbnail_path column.")
+                if "category" not in existing_columns:
+                    conn.execute(text("ALTER TABLE files ADD COLUMN category VARCHAR(32)"))
+                    logger.info("Migrated schema: Added files.category column.")
+
+            # Backfill category on any legacy rows where category IS NULL
+            conn.execute(text("""
+                UPDATE files SET category = 'image' WHERE category IS NULL AND (
+                    mime_type LIKE 'image/%' OR name LIKE '%.png' OR name LIKE '%.jpg' OR name LIKE '%.jpeg'
+                    OR name LIKE '%.gif' OR name LIKE '%.webp' OR name LIKE '%.svg' OR name LIKE '%.bmp'
+                    OR name LIKE '%.tiff' OR name LIKE '%.ico' OR name LIKE '%.jfif'
+                )
+            """))
+            conn.execute(text("""
+                UPDATE files SET category = 'video' WHERE category IS NULL AND (
+                    mime_type LIKE 'video/%' OR name LIKE '%.mp4' OR name LIKE '%.webm' OR name LIKE '%.mov'
+                    OR name LIKE '%.mkv' OR name LIKE '%.avi' OR name LIKE '%.wmv' OR name LIKE '%.flv' OR name LIKE '%.m4v'
+                )
+            """))
+            conn.execute(text("""
+                UPDATE files SET category = 'audio' WHERE category IS NULL AND (
+                    mime_type LIKE 'audio/%' OR name LIKE '%.mp3' OR name LIKE '%.wav' OR name LIKE '%.ogg'
+                    OR name LIKE '%.flac' OR name LIKE '%.m4a' OR name LIKE '%.aac' OR name LIKE '%.wma'
+                )
+            """))
+            conn.execute(text("""
+                UPDATE files SET category = 'document' WHERE category IS NULL AND (
+                    mime_type LIKE '%pdf%' OR mime_type LIKE '%document%' OR mime_type LIKE '%text%'
+                    OR name LIKE '%.pdf' OR name LIKE '%.txt' OR name LIKE '%.doc' OR name LIKE '%.docx'
+                    OR name LIKE '%.rtf' OR name LIKE '%.md' OR name LIKE '%.csv' OR name LIKE '%.xls'
+                    OR name LIKE '%.xlsx' OR name LIKE '%.ppt' OR name LIKE '%.pptx'
+                )
+            """))
+            conn.execute(text("""
+                UPDATE files SET category = 'other' WHERE category IS NULL
+            """))
+
+            # Create high-performance database indexes
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_files_storage_path ON files (storage_path)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_files_folder_id ON files (folder_id)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_files_category ON files (category)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_files_created_at ON files (created_at)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_files_name ON files (name)"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_files_mime_type ON files (mime_type)"))
 
             # Auto-cleanup orphaned asset references if folders were removed
             cursor = conn.execute(text("SELECT COUNT(*) FROM library_folders"))

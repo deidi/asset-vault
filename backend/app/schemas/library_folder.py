@@ -45,4 +45,6 @@ class FolderScanResult(BaseModel):
     total_scanned: int
     newly_indexed: int
     already_indexed: int
+    orphans_purged: int = 0
+    moved_reconciled: int = 0
     errors: List[str] = []

@@ -2,12 +2,13 @@ import os
 import mimetypes
 import logging
 from datetime import datetime
-from typing import List, Optional, Set
+from typing import List, Optional, Set, Dict
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.models.library_folder import LibraryFolder
 from app.models.asset import Asset
+from app.models.tag import Tag
 from app.repositories.library_folder_repository import LibraryFolderRepository
 from app.repositories.asset_repository import AssetRepository
 from app.services.tag_service import TagService
@@ -32,9 +33,31 @@ AUDIO_EXTENSIONS: Set[str] = {
     ".mp3", ".wav", ".ogg", ".flac", ".m4a", ".aac", ".wma"
 }
 DOCUMENT_EXTENSIONS: Set[str] = {
-    ".pdf"
+    ".pdf", ".txt", ".doc", ".docx", ".rtf", ".md", ".csv", ".xls", ".xlsx", ".ppt", ".pptx"
 }
-SUPPORTED_EXTENSIONS: Set[str] = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS | AUDIO_EXTENSIONS | DOCUMENT_EXTENSIONS
+MEDIA_EXTENSIONS: Set[str] = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS | AUDIO_EXTENSIONS | DOCUMENT_EXTENSIONS
+SUPPORTED_EXTENSIONS: Set[str] = MEDIA_EXTENSIONS
+
+def categorize_file(path_or_name: str, mime_type: Optional[str] = None) -> str:
+    """Classifies a file into: 'image', 'video', 'audio', 'document', or 'other'."""
+    _, ext = os.path.splitext(path_or_name)
+    clean_ext = ext.lower()
+    clean_mime = (mime_type or "").lower()
+
+    if clean_ext in IMAGE_EXTENSIONS or clean_mime.startswith("image/"):
+        return "image"
+    if clean_ext in VIDEO_EXTENSIONS or clean_mime.startswith("video/"):
+        return "video"
+    if clean_ext in AUDIO_EXTENSIONS or clean_mime.startswith("audio/"):
+        return "audio"
+    if (
+        clean_ext in DOCUMENT_EXTENSIONS
+        or "pdf" in clean_mime
+        or "document" in clean_mime
+        or clean_mime.startswith("text/")
+    ):
+        return "document"
+    return "other"
 
 # Directories and files that must be ignored to prevent feedback loops and indexing internal app state
 EXCLUDED_DIR_NAMES: Set[str] = {
@@ -228,40 +251,50 @@ class FolderService:
         total_scanned = 0
         newly_indexed = 0
         already_indexed = 0
+        orphans_purged = 0
+        moved_reconciled = 0
         errors: List[str] = []
 
-        # Clean up any previously indexed assets in this folder that match excluded paths
+        # 1. Clean up any previously indexed assets in this folder that match excluded paths
         try:
-            existing_folder_assets = self.db.query(Asset).filter(Asset.folder_id == folder.id).all()
-            for a in existing_folder_assets:
+            excluded_assets = self.db.query(Asset).filter(Asset.folder_id == folder.id).all()
+            for a in excluded_assets:
                 if a.storage_path and is_excluded_path(a.storage_path):
                     self.db.delete(a)
             self.db.commit()
         except Exception as e:
             logger.warning(f"Error purging excluded assets for folder {folder.id}: {e}")
 
-        # Find all media files
+        # 2. Map existing assets for this folder into existing (valid on disk) vs missing
+        existing_assets = self.db.query(Asset).filter(Asset.folder_id == folder.id).all()
+        existing_paths: Dict[str, Asset] = {}
+        missing_by_name: Dict[str, List[Asset]] = {}
+
+        for a in existing_assets:
+            if a.storage_path:
+                norm_p = os.path.normpath(a.storage_path)
+                if os.path.exists(norm_p):
+                    existing_paths[norm_p] = a
+                else:
+                    filename = a.name or os.path.basename(norm_p)
+                    missing_by_name.setdefault(filename, []).append(a)
+
+        # 3. Discover all valid files currently present on disk (including non-media files)
         file_paths: List[str] = []
         if folder.is_recursive:
             for root, dirs, filenames in os.walk(folder.path, followlinks=True):
-                # Exclude hidden, system, and unwanted directories from traversal
+                # Exclude hidden, system, and unwanted directories from traversal immediately
                 dirs[:] = [d for d in dirs if not is_excluded_dir_name(d)]
                 for filename in filenames:
                     file_abs = os.path.normpath(os.path.join(root, filename))
-                    if is_excluded_path(file_abs):
-                        continue
-                    _, ext = os.path.splitext(filename)
-                    if ext.lower() in SUPPORTED_EXTENSIONS:
+                    if not is_excluded_path(file_abs):
                         file_paths.append(file_abs)
         else:
             try:
                 for entry in os.scandir(folder.path):
                     if entry.is_file():
                         entry_abs = os.path.normpath(entry.path)
-                        if is_excluded_path(entry_abs):
-                            continue
-                        _, ext = os.path.splitext(entry.name)
-                        if ext.lower() in SUPPORTED_EXTENSIONS:
+                        if not is_excluded_path(entry_abs):
                             file_paths.append(entry_abs)
             except Exception as e:
                 errors.append(f"Error scanning folder root: {str(e)}")
@@ -273,11 +306,15 @@ class FolderService:
         if folder.custom_tags:
             configured_custom_tags = [t.strip() for t in folder.custom_tags.split(",") if t.strip()]
 
+        # 4. Pre-cache all tags in memory for fast lookup/creation
+        tags_cache: Dict[str, Tag] = {t.name.lower(): t for t in self.db.query(Tag).all()}
+
+        # 5. Process files on disk with batched commits and smart move reconciliation
+        batch_counter = 0
         for file_path in file_paths:
             try:
-                # Check if file already indexed
-                existing_asset = self.asset_repo.find_by_storage_path(file_path)
-                if existing_asset:
+                # If already indexed at this exact path, count and continue
+                if file_path in existing_paths:
                     already_indexed += 1
                     continue
 
@@ -288,22 +325,42 @@ class FolderService:
                 size_bytes = os.path.getsize(file_path)
                 mtime = datetime.fromtimestamp(os.path.getmtime(file_path))
                 mime_type, _ = mimetypes.guess_type(file_path)
+                category = categorize_file(file_path, mime_type)
 
-                # Determine tag set
+                # Check if this is a moved file previously at another path in this folder
+                candidate_list = missing_by_name.get(filename)
+                if candidate_list:
+                    matched_idx = 0
+                    for idx, candidate in enumerate(candidate_list):
+                        if candidate.size_bytes == size_bytes:
+                            matched_idx = idx
+                            break
+                    matched_asset = candidate_list.pop(matched_idx)
+                    if not candidate_list:
+                        del missing_by_name[filename]
+
+                    # Reconcile moved asset in-place, preserving UUID, custom tags, and history
+                    matched_asset.storage_path = file_path
+                    matched_asset.size_bytes = size_bytes
+                    matched_asset.file_modified_at = mtime
+                    matched_asset.category = category
+                    if mime_type:
+                        matched_asset.mime_type = mime_type
+                    existing_paths[file_path] = matched_asset
+                    moved_reconciled += 1
+                    already_indexed += 1
+                    batch_counter += 1
+                    if batch_counter % 500 == 0:
+                        self.db.commit()
+                    continue
+
+                # Brand new asset to index
                 tag_names_to_add: List[str] = []
-                
-                # 1. System extension tag
                 if clean_ext:
                     tag_names_to_add.append(f"#{clean_ext}")
-
-                # 2. System filename tag
                 tag_names_to_add.append(f"#{filename}")
+                tag_names_to_add.append(f"#{mtime.year}")
 
-                # 3. Year tag
-                year_tag = f"#{mtime.year}"
-                tag_names_to_add.append(year_tag)
-
-                # 4. Folder name tags (all directory levels down to file)
                 if folder.auto_tag_folder:
                     try:
                         rel_dir = os.path.relpath(os.path.dirname(file_path), folder.path)
@@ -317,15 +374,21 @@ class FolderService:
                     if folder.name:
                         tag_names_to_add.append(f"#{folder.name}")
 
-                # 5. Custom configured folder tags
                 for custom_tag in configured_custom_tags:
                     tag_names_to_add.append(f"#{custom_tag}" if not custom_tag.startswith("#") else custom_tag)
 
-                # Deduplicate tags
                 unique_tags = list(dict.fromkeys(tag_names_to_add))
-                resolved_tags = [self.tag_service.get_or_create_tag(t) for t in unique_tags]
+                resolved_tags: List[Tag] = []
+                for t_name in unique_tags:
+                    t_lower = t_name.lower()
+                    if t_lower in tags_cache:
+                        resolved_tags.append(tags_cache[t_lower])
+                    else:
+                        new_tag = Tag(name=t_name)
+                        self.db.add(new_tag)
+                        tags_cache[t_lower] = new_tag
+                        resolved_tags.append(new_tag)
 
-                # Create Asset record
                 asset = Asset(
                     name=filename,
                     original_name=filename,
@@ -333,23 +396,44 @@ class FolderService:
                     size_bytes=size_bytes,
                     storage_path=file_path,
                     folder_id=folder.id,
+                    category=category,
                     file_modified_at=mtime,
                     created_at=datetime.utcnow()
                 )
                 asset.tags = resolved_tags
-                saved_asset = self.asset_repo.save(asset)
+                self.db.add(asset)
+                existing_paths[file_path] = asset
                 newly_indexed += 1
+                batch_counter += 1
 
-                # Pre-generate thumbnail in cache
-                try:
-                    from app.services.thumbnail_service import thumbnail_service
-                    thumbnail_service.get_or_generate_thumbnail(self.db, saved_asset.id, 350, 350)
-                except Exception as thumb_err:
-                    logger.debug(f"Could not pre-generate thumbnail for {saved_asset.id}: {thumb_err}")
+                if batch_counter % 500 == 0:
+                    self.db.commit()
 
             except Exception as e:
                 logger.error(f"Error indexing file {file_path}: {e}")
                 errors.append(f"{file_path}: {str(e)}")
+
+        # 6. Purge orphaned records for assets no longer on disk
+        for remaining_missing_list in missing_by_name.values():
+            for orphan in remaining_missing_list:
+                try:
+                    self.db.delete(orphan)
+                    orphans_purged += 1
+                except Exception as del_err:
+                    logger.debug(f"Failed deleting orphaned asset {orphan.id}: {del_err}")
+
+        # Final commit of any remaining staged additions, updates, or deletions
+        try:
+            self.db.commit()
+        except Exception as commit_err:
+            logger.error(f"Commit error during folder scan: {commit_err}")
+            self.db.rollback()
+
+        # Clean up any unused tags
+        try:
+            self.tag_service.delete_unused_tags()
+        except Exception:
+            pass
 
         return FolderScanResult(
             folder_id=folder.id,
@@ -357,6 +441,8 @@ class FolderService:
             total_scanned=total_scanned,
             newly_indexed=newly_indexed,
             already_indexed=already_indexed,
+            orphans_purged=orphans_purged,
+            moved_reconciled=moved_reconciled,
             errors=errors
         )
 

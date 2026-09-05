@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Maximize2,
   FolderOpen,
@@ -8,7 +8,7 @@ import {
   Image as ImageIcon,
   Film,
   Music,
-  File
+  Package
 } from 'lucide-react';
 import type { Asset } from '../types';
 import { getThumbnailUrl, revealInExplorer } from '../api';
@@ -30,6 +30,37 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
   onOpenFullscreenPreview,
   gridSize,
 }) => {
+  // O(1) Fast Set lookup for selection checks across large catalogs (9,000+ assets)
+  const selectedSet = useMemo(() => new Set(selectedAssetIds), [selectedAssetIds]);
+
+  // Progressive chunked rendering: load first 150 items instantly, then append smoothly as user scrolls
+  const [displayLimit, setDisplayLimit] = useState(150);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    setDisplayLimit(150);
+  }, [assets]);
+
+  useEffect(() => {
+    if (displayLimit >= assets.length) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setDisplayLimit((prev) => Math.min(prev + 150, assets.length));
+        }
+      },
+      { rootMargin: '400px' }
+    );
+
+    const currentSentinel = sentinelRef.current;
+    if (currentSentinel) observer.observe(currentSentinel);
+    return () => {
+      if (currentSentinel) observer.unobserve(currentSentinel);
+    };
+  }, [displayLimit, assets.length]);
+
+  const visibleAssets = useMemo(() => assets.slice(0, displayLimit), [assets, displayLimit]);
+
   const getGridColsClass = () => {
     switch (gridSize) {
       case 'small':
@@ -42,26 +73,30 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
     }
   };
 
-  const getFormatIcon = (mime: string) => {
-    if (mime.startsWith('image/')) return <ImageIcon className="w-3.5 h-3.5 text-blue-400" />;
-    if (mime.startsWith('video/')) return <Film className="w-3.5 h-3.5 text-indigo-400" />;
-    if (mime.startsWith('audio/')) return <Music className="w-3.5 h-3.5 text-emerald-400" />;
-    if (mime.includes('pdf')) return <FileText className="w-3.5 h-3.5 text-rose-400" />;
-    return <File className="w-3.5 h-3.5 text-slate-400" />;
+  const getFormatIcon = (asset: Asset) => {
+    const mime = (asset.mime_type || '').toLowerCase();
+    const cat = asset.category || '';
+    if (cat === 'image' || mime.startsWith('image/')) return <ImageIcon className="w-3.5 h-3.5 text-blue-400" />;
+    if (cat === 'video' || mime.startsWith('video/')) return <Film className="w-3.5 h-3.5 text-indigo-400" />;
+    if (cat === 'audio' || mime.startsWith('audio/')) return <Music className="w-3.5 h-3.5 text-emerald-400" />;
+    if (cat === 'document' || mime.includes('pdf')) return <FileText className="w-3.5 h-3.5 text-rose-400" />;
+    return <Package className="w-3.5 h-3.5 text-amber-400" />;
   };
 
-  const renderPlaceholderIcon = (mime: string) => {
-    if (mime.startsWith('image/')) return <ImageIcon className="w-10 h-10 text-slate-800" />;
-    if (mime.startsWith('video/')) return <Film className="w-10 h-10 text-slate-800" />;
-    if (mime.startsWith('audio/')) return <Music className="w-10 h-10 text-slate-800" />;
-    if (mime.includes('pdf')) return <FileText className="w-10 h-10 text-slate-800" />;
-    return <File className="w-10 h-10 text-slate-800" />;
+  const renderPlaceholderIcon = (asset: Asset) => {
+    const mime = (asset.mime_type || '').toLowerCase();
+    const cat = asset.category || '';
+    if (cat === 'image' || mime.startsWith('image/')) return <ImageIcon className="w-10 h-10 text-slate-800" />;
+    if (cat === 'video' || mime.startsWith('video/')) return <Film className="w-10 h-10 text-slate-800" />;
+    if (cat === 'audio' || mime.startsWith('audio/')) return <Music className="w-10 h-10 text-slate-800" />;
+    if (cat === 'document' || mime.includes('pdf')) return <FileText className="w-10 h-10 text-slate-800" />;
+    return <Package className="w-10 h-10 text-slate-800" />;
   };
 
   return (
     <div className={`grid ${getGridColsClass()} p-6`}>
-      {assets.map((asset) => {
-        const isSelected = selectedAssetIds.includes(asset.id);
+      {visibleAssets.map((asset) => {
+        const isSelected = selectedSet.has(asset.id);
         const isActive = activeAssetId === asset.id;
         const thumbnailUrl = getThumbnailUrl(asset.id, 350, 350);
 
@@ -85,7 +120,7 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
             {/* Thumbnail Canvas */}
             <div className="relative aspect-square w-full bg-slate-950/80 overflow-hidden flex items-center justify-center">
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                {renderPlaceholderIcon(asset.mime_type)}
+                {renderPlaceholderIcon(asset)}
               </div>
               <img
                 src={thumbnailUrl}
@@ -140,7 +175,7 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
             {/* Asset Metadata Footer */}
             <div className="p-3 space-y-1 bg-slate-900/40 border-t border-slate-800/60">
               <div className="flex items-center space-x-1.5">
-                {getFormatIcon(asset.mime_type)}
+                {getFormatIcon(asset)}
                 <h4 className="text-xs font-semibold text-slate-200 truncate flex-1" title={asset.name}>
                   {asset.name}
                 </h4>
@@ -154,6 +189,13 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
           </div>
         );
       })}
+
+      {/* Progressive loading sentinel */}
+      {displayLimit < assets.length && (
+        <div ref={sentinelRef} className="col-span-full h-12 flex items-center justify-center text-xs text-slate-500 font-medium">
+          Loading more assets...
+        </div>
+      )}
     </div>
   );
 };

@@ -21,7 +21,7 @@ export async function fetchAssets(params: {
   if (params.subfolderPath) query.append('subfolder_path', params.subfolderPath);
   if (params.sortBy) query.append('sort_by', params.sortBy);
   if (params.sortOrder) query.append('sort_order', params.sortOrder);
-  if (params.fileType && params.fileType !== 'all') query.append('file_type', params.fileType);
+  if (params.fileType) query.append('file_type', params.fileType);
   if (params.tags && params.tags.length > 0) {
     params.tags.forEach(t => query.append('tags', t));
   }

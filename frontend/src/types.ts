@@ -32,6 +32,7 @@ export interface Asset {
   storage_path: string;
   description?: string | null;
   folder_id?: string | null;
+  category?: string | null;
   file_modified_at?: string | null;
   file_hash?: string | null;
   thumbnail_path?: string | null;

@@ -147,6 +147,10 @@ class TestAssetService(unittest.TestCase):
             name="report.pdf", originalName="report.pdf", mimeType="application/pdf", sizeBytes=200, storagePath="storage/report.pdf", tags=[]
         ))
 
+        a_other = self.service.upload_asset(AssetCreate(
+            name="archive.zip", originalName="archive.zip", mimeType="application/zip", sizeBytes=400, storagePath="storage/archive.zip", tags=[]
+        ))
+
         # Filter by image
         img_res = self.service.get_inventory(file_type="image")
         self.assertEqual(img_res["total"], 1)
@@ -167,9 +171,16 @@ class TestAssetService(unittest.TestCase):
         self.assertEqual(doc_res["total"], 1)
         self.assertEqual(doc_res["items"][0].id, a_doc.id)
 
-        # Filter by all
+        # Filter by other (non-media)
+        other_res = self.service.get_inventory(file_type="other")
+        self.assertEqual(other_res["total"], 1)
+        self.assertEqual(other_res["items"][0].id, a_other.id)
+
+        # Filter by all (strictly excludes 'other')
         all_res = self.service.get_inventory(file_type="all")
         self.assertEqual(all_res["total"], 4)
+        all_ids = [item.id for item in all_res["items"]]
+        self.assertNotIn(a_other.id, all_ids)
 
     def test_asset_deletion(self):
         """Verify DB record deletion and storage file cleanup."""

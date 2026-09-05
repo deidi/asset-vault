@@ -15,6 +15,7 @@ class AssetCreate(BaseModel):
     tags: Optional[List[str]] = None
     folderId: Optional[str] = None
     fileModifiedAt: Optional[datetime] = None
+    category: Optional[str] = None
 
 class AssetResponse(BaseModel):
     id: str
@@ -25,6 +26,7 @@ class AssetResponse(BaseModel):
     storage_path: Optional[str] = None
     description: Optional[str] = None
     folder_id: Optional[str] = None
+    category: Optional[str] = None
     file_modified_at: Optional[datetime] = None
     thumbnail_path: Optional[str] = None
     created_at: datetime

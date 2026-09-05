@@ -63,15 +63,15 @@ class TestFolderAndExplorerService(unittest.TestCase):
         self.assertIsNotNone(folder_res.id)
         self.assertEqual(folder_res.name, "Test Media Library")
 
-        # Scan folder
+        # Scan folder (all non-excluded files are indexed, including notes.txt)
         scan_res = folder_service.scan_folder(folder_res.id)
-        self.assertEqual(scan_res.total_scanned, 2)  # banner.png and clip.mp4 (notes.txt ignored)
-        self.assertEqual(scan_res.newly_indexed, 2)
+        self.assertEqual(scan_res.total_scanned, 3)  # banner.png, clip.mp4, and notes.txt
+        self.assertEqual(scan_res.newly_indexed, 3)
         self.assertEqual(scan_res.already_indexed, 0)
 
         # Verify indexed assets
         assets = asset_repo.find_all()
-        self.assertEqual(len(assets), 2)
+        self.assertEqual(len(assets), 3)
 
         banner_asset = next(a for a in assets if a.name == "banner.png")
         tag_names = {t.name for t in banner_asset.tags}
@@ -84,7 +84,7 @@ class TestFolderAndExplorerService(unittest.TestCase):
 
         # Second scan should not duplicate
         scan_res_2 = folder_service.scan_folder(folder_res.id)
-        self.assertEqual(scan_res_2.already_indexed, 2)
+        self.assertEqual(scan_res_2.already_indexed, 3)
         self.assertEqual(scan_res_2.newly_indexed, 0)
 
     def test_in_place_rename_on_disk(self):
@@ -152,7 +152,7 @@ class TestFolderAndExplorerService(unittest.TestCase):
         # 1. Fetch tree
         tree = folder_service.get_folder_tree(folder_res.id)
         self.assertEqual(tree.name, "TreeTest")
-        self.assertEqual(tree.asset_count, 2)
+        self.assertEqual(tree.asset_count, 3)
         self.assertEqual(len(tree.children), 1)
         self.assertEqual(tree.children[0].name, "subfolder")
         self.assertEqual(tree.children[0].asset_count, 1)
@@ -230,9 +230,9 @@ class TestFolderAndExplorerService(unittest.TestCase):
         ))
 
         scan_res = folder_service.scan_folder(folder_res.id)
-        # Should only scan the 2 user files (root banner.png and subfolder/clip.mp4), ignoring .cache/, db/, and storage/
-        self.assertEqual(scan_res.total_scanned, 2)
-        self.assertEqual(scan_res.newly_indexed, 2)
+        # Should only scan the 3 user files (banner.png, subfolder/clip.mp4, and notes.txt), ignoring .cache/, db/, and storage/
+        self.assertEqual(scan_res.total_scanned, 3)
+        self.assertEqual(scan_res.newly_indexed, 3)
 
         # Check tree does not contain .cache, db, or storage
         tree = folder_service.get_folder_tree(folder_res.id)
@@ -241,6 +241,62 @@ class TestFolderAndExplorerService(unittest.TestCase):
         self.assertNotIn(".cache", child_names)
         self.assertNotIn("db", child_names)
         self.assertNotIn("storage", child_names)
+
+    def test_smart_move_reconciliation_on_scan(self):
+        """Verify that moving a file on disk outside AssetVault updates the record in-place during scan without duplicating."""
+        folder_service = FolderService(self.db)
+        asset_repo = AssetRepository(self.db)
+
+        folder_res = folder_service.add_folder(LibraryFolderCreate(
+            path=self.temp_dir,
+            name="MoveTest",
+            is_recursive=True
+        ))
+        folder_service.scan_folder(folder_res.id)
+
+        original_asset = asset_repo.find_by_storage_path(self.img1_path)
+        self.assertIsNotNone(original_asset)
+        original_id = original_asset.id
+
+        # Move banner.png to subfolder/banner.png on disk
+        dest_path = os.path.join(self.sub_dir, "banner.png")
+        shutil.move(self.img1_path, dest_path)
+
+        # Re-scan the folder
+        scan_res = folder_service.scan_folder(folder_res.id)
+        self.assertEqual(scan_res.moved_reconciled, 1)
+
+        # Verify the record was updated in-place with the SAME id
+        updated_asset = asset_repo.find_by_id(original_id)
+        self.assertIsNotNone(updated_asset)
+        self.assertEqual(os.path.normpath(updated_asset.storage_path), os.path.normpath(dest_path))
+
+        # Ensure no duplicate asset exists
+        all_assets = asset_repo.find_all()
+        self.assertEqual(len([a for a in all_assets if a.name == "banner.png"]), 1)
+
+    def test_orphan_cleanup_on_scan(self):
+        """Verify that deleting a file on disk outside AssetVault removes the orphaned record during scan."""
+        folder_service = FolderService(self.db)
+        asset_repo = AssetRepository(self.db)
+
+        folder_res = folder_service.add_folder(LibraryFolderCreate(
+            path=self.temp_dir,
+            name="OrphanTest",
+            is_recursive=True
+        ))
+        folder_service.scan_folder(folder_res.id)
+
+        # Delete notes.txt from disk
+        os.remove(self.txt_path)
+
+        # Scan should detect missing file and purge it
+        scan_res = folder_service.scan_folder(folder_res.id)
+        self.assertEqual(scan_res.orphans_purged, 1)
+
+        # Verify notes.txt record is gone from DB
+        remaining = asset_repo.find_by_storage_path(self.txt_path)
+        self.assertIsNone(remaining)
 
 if __name__ == "__main__":
     unittest.main()

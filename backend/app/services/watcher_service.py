@@ -16,7 +16,7 @@ from app.repositories.library_folder_repository import LibraryFolderRepository
 from app.repositories.asset_repository import AssetRepository
 from app.services.tag_service import TagService
 from app.services.connection_manager import manager
-from app.services.folder_service import SUPPORTED_EXTENSIONS, is_excluded_path
+from app.services.folder_service import SUPPORTED_EXTENSIONS, is_excluded_path, categorize_file
 
 logger = logging.getLogger("assetvault.watcher")
 
@@ -30,10 +30,7 @@ class LibraryEventHandler(FileSystemEventHandler):
         self._processed_timestamps: Dict[str, float] = {}
 
     def _is_supported(self, file_path: str) -> bool:
-        if is_excluded_path(file_path):
-            return False
-        _, ext = os.path.splitext(file_path)
-        return ext.lower() in SUPPORTED_EXTENSIONS
+        return not is_excluded_path(file_path)
 
     def _wait_until_stable(self, file_path: str, max_wait_sec: float = 3.0) -> bool:
         """Polls until file is accessible and stops changing size (e.g. during copy)."""
@@ -114,6 +111,10 @@ class LibraryEventHandler(FileSystemEventHandler):
             asset.original_name = new_filename
             asset.storage_path = dest_path
             asset.file_modified_at = datetime.utcnow()
+            new_mime, _ = mimetypes.guess_type(dest_path)
+            if new_mime:
+                asset.mime_type = new_mime
+            asset.category = categorize_file(dest_path, new_mime)
 
             # Update filename tag
             updated_tags: List[Tag] = []
@@ -260,18 +261,12 @@ class LibraryEventHandler(FileSystemEventHandler):
                 size_bytes=size_bytes,
                 storage_path=norm_path,
                 folder_id=folder.id,
+                category=categorize_file(norm_path, mime_type),
                 file_modified_at=mtime,
                 created_at=datetime.utcnow()
             )
             new_asset.tags = resolved_tags
             saved = asset_repo.save(new_asset)
-
-            # Pre-generate thumbnail in cache
-            try:
-                from app.services.thumbnail_service import thumbnail_service
-                thumbnail_service.get_or_generate_thumbnail(db, saved.id, 350, 350)
-            except Exception as thumb_err:
-                logger.debug(f"Could not pre-generate thumbnail for {saved.id}: {thumb_err}")
 
             manager.broadcast_sync("file_added", {
                 "asset_id": saved.id,

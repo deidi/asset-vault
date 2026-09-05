@@ -101,9 +101,10 @@ class ThumbnailService:
             elif clean_ext in AUDIO_EXTENSIONS:
                 return self._render_audio_thumbnail(norm_source, output_path, width, height)
 
-            # 5. Default Fallback Badge
+            # 5. Default Fallback Badge for non-media files
             else:
-                return self._render_generic_badge(norm_source, output_path, width, height, label="FILE")
+                label = clean_ext.lstrip(".").upper()[:6] if clean_ext else "FILE"
+                return self._render_generic_badge(norm_source, output_path, width, height, label=label, bg_color=(30, 41, 59))
 
         except Exception as e:
             logger.error(f"Failed to generate thumbnail for {source_path}: {e}")

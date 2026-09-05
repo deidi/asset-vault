@@ -104,6 +104,26 @@
   - Added Windows File Version Info resource (`version_info.txt`) embedding company name, copyright, version (`1.0.0.0`), and file descriptions into `dist/AssetVault.exe`.
   - Updated build pipeline `build_desktop.py` to compile version metadata directly into the standalone binary.
   - Streamlined `README.md` to highlight one-click `AssetVault.exe` execution with zero prerequisites.
+### Task 016: Non-Media Files Tab, 9000+ Asset Performance Overhaul & Smart Move Reconciliation (Release v1.1.0)
+- **Dedicated "Other Files" Tab & Non-Media Indexing**:
+  - Expanded folder indexing to support all non-excluded files (archives, 3D models, code, executables, data files).
+  - Added dedicated **"Other Files"** tab in UI subheader (`file_type="other"`) with Lucide `Package` icon and amber badge aesthetics.
+  - Strictly isolated non-media files from the **"All Files"** view (`file_type="all"`), which represents the media library (images, videos, audio, documents).
+- **9,000+ Asset Scan & Reload Engine Overhaul**:
+  - Eliminated synchronous thumbnail generation from the scan loop; thumbnails are now generated lazily on-demand when rendered in the viewport.
+  - Replaced $O(N^2)$ sequential table scans with database indexes on `storage_path`, `folder_id`, `category`, `created_at`, `mime_type`, and `name`.
+  - Replaced per-file SQLite disk transactions with preloaded tag caches and 500-item batched commits, reducing 27,000+ fsync disk commits to ~10 transactions.
+  - Validated benchmark: 5,000 files scan in 4.9 seconds (>1,020 files/sec), dropping large catalog scans from ~1 hour down to under 10 seconds.
+- **Smart Move Reconciliation & Orphan Purging**:
+  - Automatically reconciles files moved or renamed outside AssetVault during scans: matches missing assets by filename and size, updating `storage_path` in-place while preserving asset UUID, custom tags, descriptions, and history.
+  - Automatically purges orphaned database records for files deleted from disk while AssetVault was closed.
+- **Frontend Performance & $O(1)$ Selection Set**:
+  - Optimized grid selection lookup from $O(N^2)$ array searches to $O(1)$ `Set` lookups.
+  - Added progressive chunked rendering (initial window of 150 items + sentinel intersection observer) to eliminate DOM stalls and maintain 60 FPS with 9,000+ items.
+- **Automated Test Suite Expansion**:
+  - Expanded test suite to 25/25 automated tests with new regression coverage for non-media filtering, move reconciliation, and orphan cleanup.
+- **Release Versioning**:
+  - Bumped version to `v1.1.0` in `version_info.txt` (1.1.0.0), `frontend/package.json`, and `docs/index.html`.
 
 ---
 
