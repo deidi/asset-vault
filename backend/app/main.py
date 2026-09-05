@@ -35,6 +35,18 @@ logger.info("Database schema initialized and verified.")
 CategoryService.initialize()
 logger.info("Category extensions initialized.")
 
+# Synchronize all asset categories with active category extensions
+try:
+    db = SessionLocal()
+    try:
+        updated = CategoryService.recategorize_assets(db)
+        if updated > 0:
+            logger.info(f"Startup recategorization aligned {updated} asset(s) with active category extensions.")
+    finally:
+        db.close()
+except Exception as e:
+    logger.warning(f"Startup recategorization check failed: {e}")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: configure event loop for manager and start background file watchers

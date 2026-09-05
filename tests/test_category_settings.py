@@ -164,5 +164,84 @@ class TestCategorySettings(unittest.TestCase):
         reset_data = reset_res.json()
         self.assertNotIn(".xyzraw", reset_data["categories"]["image"])
 
+    def test_heic_strict_category_enforcement(self):
+        """
+        Verify that unregistered extensions (e.g. .heic) NEVER appear under 'image'
+        even if mime_type is 'image/heic', and strictly appear under 'other'.
+        """
+        from app.services.asset_service import AssetService
+
+        # 1. By default, .heic is not in image extensions
+        self.assertEqual(categorize_file("sample.heic", "image/heic"), "other")
+        self.assertEqual(categorize_file("sample.HEIC", "image/heic"), "other")
+
+        # 2. Insert test asset with mime_type="image/heic"
+        heic_asset = Asset(
+            id="heic-asset-strict-1",
+            folder_id="test-folder-cat",
+            name="photo.heic",
+            original_name="photo.heic",
+            storage_path=os.path.join(self.temp_dir, "photo.heic"),
+            mime_type="image/heic",
+            size_bytes=2048,
+            category=categorize_file("photo.heic", "image/heic"),
+            created_at=datetime.utcnow()
+        )
+        self.db.add(heic_asset)
+        self.db.commit()
+
+        self.assertEqual(heic_asset.category, "other")
+
+        service = AssetService(self.db)
+
+        # 3. Query under file_type="image" -> MUST NOT contain photo.heic
+        res_img = service.get_inventory(file_type="image")
+        image_names = [a.name for a in res_img["items"]]
+        self.assertNotIn("photo.heic", image_names)
+
+        # 4. Query under file_type="all" -> MUST NOT contain photo.heic (as it's non-media 'other')
+        res_all = service.get_inventory(file_type="all")
+        all_names = [a.name for a in res_all["items"]]
+        self.assertNotIn("photo.heic", all_names)
+
+        # 5. Query under file_type="other" -> MUST contain photo.heic
+        res_other = service.get_inventory(file_type="other")
+        other_names = [a.name for a in res_other["items"]]
+        self.assertIn("photo.heic", other_names)
+
+        # 6. Now register .heic under 'image'
+        curr = CategoryService.get_extensions_map()
+        curr["image"].append(".heic")
+        CategoryService.save_extensions(curr, recategorize_existing=True, db=self.db)
+
+        # Re-fetch asset
+        self.db.refresh(heic_asset)
+        self.assertEqual(heic_asset.category, "image")
+        self.assertEqual(categorize_file("photo.heic", "image/heic"), "image")
+
+        # 7. Query under file_type="image" -> MUST NOW contain photo.heic
+        res_img2 = service.get_inventory(file_type="image")
+        image_names2 = [a.name for a in res_img2["items"]]
+        self.assertIn("photo.heic", image_names2)
+
+        # 8. Query under file_type="other" -> MUST NOT contain photo.heic
+        res_other2 = service.get_inventory(file_type="other")
+        other_names2 = [a.name for a in res_other2["items"]]
+        self.assertNotIn("photo.heic", other_names2)
+
+        # 9. Now remove .heic from 'image'
+        curr = CategoryService.get_extensions_map()
+        curr["image"] = [e for e in curr["image"] if e != ".heic"]
+        CategoryService.save_extensions(curr, recategorize_existing=True, db=self.db)
+
+        self.db.refresh(heic_asset)
+        self.assertEqual(heic_asset.category, "other")
+        self.assertEqual(categorize_file("photo.heic", "image/heic"), "other")
+
+        # 10. Query under file_type="image" -> MUST NOT contain photo.heic again
+        res_img3 = service.get_inventory(file_type="image")
+        image_names3 = [a.name for a in res_img3["items"]]
+        self.assertNotIn("photo.heic", image_names3)
+
 if __name__ == "__main__":
     unittest.main()

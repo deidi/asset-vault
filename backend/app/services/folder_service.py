@@ -44,19 +44,33 @@ def categorize_file(path_or_name: str, mime_type: Optional[str] = None) -> str:
     aud_exts = active.get("audio", AUDIO_EXTENSIONS)
     doc_exts = active.get("document", DOCUMENT_EXTENSIONS)
 
-    if clean_ext in img_exts or clean_mime.startswith("image/"):
-        return "image"
-    if clean_ext in vid_exts or clean_mime.startswith("video/"):
-        return "video"
-    if clean_ext in aud_exts or clean_mime.startswith("audio/"):
-        return "audio"
-    if (
-        clean_ext in doc_exts
-        or "pdf" in clean_mime
-        or "document" in clean_mime
-        or clean_mime.startswith("text/")
-    ):
-        return "document"
+    # When an extension is present, classification is STRICTLY governed by registered extensions
+    if clean_ext:
+        if clean_ext in img_exts:
+            return "image"
+        if clean_ext in vid_exts:
+            return "video"
+        if clean_ext in aud_exts:
+            return "audio"
+        if clean_ext in doc_exts:
+            return "document"
+        return "other"
+
+    # Only fall back to MIME type if the file has no extension at all
+    if clean_mime:
+        if clean_mime.startswith("image/"):
+            return "image"
+        if clean_mime.startswith("video/"):
+            return "video"
+        if clean_mime.startswith("audio/"):
+            return "audio"
+        if (
+            "pdf" in clean_mime
+            or "document" in clean_mime
+            or clean_mime.startswith("text/")
+        ):
+            return "document"
+
     return "other"
 
 # Directories and files that must be ignored to prevent feedback loops and indexing internal app state

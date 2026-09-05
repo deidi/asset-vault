@@ -23,6 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **O(1) Selection Lookups**: Replaced $O(N)$ array lookup in the media grid with a `Set` selection matrix, eliminating UI lag when selecting items in multi-thousand asset libraries.
 - **Progressive Chunk Rendering**: Implemented an `IntersectionObserver` rendering sentinel that renders an initial 150 items and streams subsequent chunks as the user scrolls, preventing DOM lockup.
 
+### Fixed
+- **Strict Category Extension Enforcement**: Fixed an issue where unregistered file extensions (such as `.heic`) were displayed under "Images" or other category tabs due to loose MIME type fallback matching. Extension classification is now strictly extension-first and governed exclusively by registered category sets; files with unregistered extensions remain in "Other Files" unless explicitly added to custom file types. Automatic startup alignment immediately re-evaluates all existing catalog records.
+
 ---
 
 ## [1.0.3] - 2026-09-03
