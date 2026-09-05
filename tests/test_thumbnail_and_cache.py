@@ -192,5 +192,40 @@ class TestThumbnailAndCache(unittest.TestCase):
         self.assertEqual(rescan_res.status_code, 200)
         self.assertEqual(rescan_res.json()["status"], "success")
 
+    def test_heic_image_fallback_thumbnail_generation(self):
+        db = self.TestSession()
+        asset_repo = AssetRepository(db)
+
+        # Create dummy HEIC file
+        heic_path = os.path.join(self.temp_dir, "vacation.heic")
+        with open(heic_path, "wb") as f:
+            f.write(b"\x00\x00\x00\x1cftypheic\x00\x00\x00\x00mif1heic")
+
+        asset = Asset(
+            name="vacation.heic",
+            original_name="vacation.heic",
+            mime_type="image/heic",
+            size_bytes=os.path.getsize(heic_path),
+            storage_path=heic_path,
+            category="image"
+        )
+        saved = asset_repo.save(asset)
+
+        # Generate thumbnail for HEIC - should cleanly generate fallback badge if no system codec is present
+        thumb_path = self.thumbnail_service.get_or_generate_thumbnail(
+            db=db,
+            asset_id=saved.id,
+            width=200,
+            height=200
+        )
+
+        self.assertIsNotNone(thumb_path)
+        self.assertTrue(os.path.exists(thumb_path))
+        self.assertTrue(thumb_path.endswith(".webp"))
+
+        with Image.open(thumb_path) as thumb_img:
+            self.assertEqual(thumb_img.format, "WEBP")
+        db.close()
+
 if __name__ == "__main__":
     unittest.main()

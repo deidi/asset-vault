@@ -7,6 +7,12 @@ from typing import Optional, Dict, Any, Tuple
 from PIL import Image, ImageOps, ImageDraw, ImageFont
 from sqlalchemy.orm import Session
 
+try:
+    from pillow_heif import register_heif_opener
+    register_heif_opener()
+except ImportError:
+    pass
+
 from app.models.asset import Asset
 from app.repositories.asset_repository import AssetRepository
 from app.services.folder_service import (
@@ -118,19 +124,46 @@ class ThumbnailService:
             return None
 
     def _render_image_thumbnail(self, source_path: str, output_path: str, width: int, height: int) -> Optional[str]:
-        with Image.open(source_path) as img:
-            # Auto-rotate based on EXIF tag if present
-            img = ImageOps.exif_transpose(img)
-            
-            # Convert palette/transparency to RGBA or RGB
-            if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
-                img = img.convert("RGBA")
-            else:
-                img = img.convert("RGB")
+        # 1. Attempt standard Pillow decoding
+        try:
+            with Image.open(source_path) as img:
+                # Auto-rotate based on EXIF tag if present
+                img = ImageOps.exif_transpose(img)
+                
+                # Convert palette/transparency to RGBA or RGB
+                if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
+                    img = img.convert("RGBA")
+                else:
+                    img = img.convert("RGB")
 
-            img.thumbnail((width, height), Image.Resampling.LANCZOS)
-            img.save(output_path, "WEBP", quality=82, method=6)
-            return output_path
+                img.thumbnail((width, height), Image.Resampling.LANCZOS)
+                img.save(output_path, "WEBP", quality=82, method=6)
+                return output_path
+        except Exception as e:
+            logger.debug(f"Pillow decoding failed for {source_path}: {e}. Falling back to Windows Shell extraction...")
+
+        # 2. Fallback: Native Windows Shell extraction (handles HEIC, RAW, PSD, etc. if system codec is installed)
+        try:
+            shell_img = self._extract_windows_shell_thumbnail(source_path, max_dimension=max(width, height))
+            if shell_img:
+                shell_img = shell_img.convert("RGB")
+                shell_img.thumbnail((width, height), Image.Resampling.LANCZOS)
+                shell_img.save(output_path, "WEBP", quality=82)
+                return output_path
+        except Exception as e:
+            logger.debug(f"Windows Shell thumbnail extraction failed for {source_path}: {e}")
+
+        # 3. Fallback: Format badge (e.g. HEIC, RAW, PSD) so the file never has a broken/missing thumbnail
+        _, ext = os.path.splitext(source_path)
+        label = ext.lstrip(".").upper()[:6] if ext else "IMAGE"
+        return self._render_generic_badge(
+            source_path,
+            output_path,
+            width,
+            height,
+            label=label,
+            bg_color=(24, 48, 89)
+        )
 
     def _render_pdf_thumbnail(self, source_path: str, output_path: str, width: int, height: int) -> Optional[str]:
         try:
